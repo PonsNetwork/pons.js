@@ -1,6 +1,6 @@
 {
   "name": "@pons-network/sdk",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Cross-chain CCTP SDK with Waku relay network integration",
   "keywords": [
     "cctp",
@@ -14,10 +14,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PonsNetwork/sdk.git"
+    "url": "git+https://github.com/PonsNetwork/pons.js.git"
   },
   "bugs": {
-    "url": "https://github.com/PonsNetwork/sdk/issues"
+    "url": "https://github.com/PonsNetwork/pons.js/issues"
   },
   "homepage": "https://pons.sh",
   "publishConfig": {
