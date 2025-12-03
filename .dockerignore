@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+examples/*/node_modules
+
+# Build outputs (keep main dist for SDK build)
+# dist - needed for SDK
+examples/*/dist
+*.tsbuildinfo
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+coverage
+.nyc_output
+
+# Misc
+.DS_Store
+Thumbs.db
+*.md
+

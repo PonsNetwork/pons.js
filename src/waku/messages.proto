@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package pons;
+
+message TransferAnnouncement {
+  string version = 1;
+  int64 timestamp = 2;
+  string user_address = 3;
+  string smart_account_address = 4;
+  string source_tx_hash = 5;
+  uint32 source_domain = 6;
+  uint32 destination_domain = 7;
+  string expected_amount = 8;
+  string nonce = 9;
+  int64 deadline = 10;
+  string message_hash = 11;
+  bytes hook_data = 12;
+}
+
+message MintCompleted {
+  string version = 1;
+  int64 timestamp = 2;
+  string indexer_address = 3;
+  string smart_account_address = 4;
+  string source_tx_hash = 5;
+  string mint_tx_hash = 6;
+  string nonce = 7;
+  string amount = 8;
+  bytes hook_data = 9;
+  string indexer_gas_cost_usdc = 10;
+  string message_hash = 11;
+}
+
+message ActionExecuted {
+  string version = 1;
+  int64 timestamp = 2;
+  string resolver_address = 3;
+  string smart_account_address = 4;
+  string execution_tx_hash = 5;
+  string nonce = 6;
+  string gas_used = 7;
+  string gas_reimbursement_usdc = 8;
+  string relayer_fee_usdc = 9;
+  bool success = 10;
+}
+

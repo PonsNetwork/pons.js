@@ -1,0 +1,63 @@
+{
+  "name": "@pons-network/sdk",
+  "version": "0.1.2",
+  "description": "Cross-chain CCTP SDK with Waku relay network integration",
+  "keywords": [
+    "cctp",
+    "cross-chain",
+    "waku",
+    "usdc",
+    "bridge",
+    "ethereum"
+  ],
+  "author": "Pons Protocol",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PonsNetwork/sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PonsNetwork/sdk/issues"
+  },
+  "homepage": "https://pons.sh",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "proto:generate": "protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/waku/generated --ts_proto_opt=esModuleInterop=true,outputEncodeMethods=true,outputJsonMethods=true src/waku/messages.proto",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@waku/interfaces": "^0.0.33",
+    "@waku/sdk": "^0.0.34",
+    "eventemitter3": "^5.0.1",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "ts-proto": "^1.181.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  }
+}
