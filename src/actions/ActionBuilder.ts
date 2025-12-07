@@ -359,9 +359,11 @@ export class ActionBuilder {
 
 /**
  * Validate an action before signing
+ * @param action The action to validate
  * @param allowNoAction If true, allows empty/zero targets (simple bridge with no action)
+ * @param protocolFeeBps Protocol fee in basis points (default: 10 = 0.1%)
  */
-export function validateAction(action: IAction, allowNoAction: boolean = true): void {
+export function validateAction(action: IAction, allowNoAction: boolean = true, protocolFeeBps: bigint = 10n): void {
   // Check if this is a no-action (simple bridge)
   const isNoAction = action.targets.length === 0 || 
     (action.targets.length === 1 && 
@@ -402,6 +404,25 @@ export function validateAction(action: IAction, allowNoAction: boolean = true): 
 
   if (action.expectedAmount <= 0n) {
     throw new Error('Invalid expected amount');
+  }
+
+  // Calculate protocol fee (percentage of expectedAmount)
+  const protocolFee = (action.expectedAmount * protocolFeeBps) / 10000n;
+  
+  // Validate that expectedAmount covers all fees and costs
+  const totalFees = action.feeConfig.indexerFee + action.feeConfig.relayerFee + action.funding.maxReimbursement + protocolFee;
+  if (action.expectedAmount < totalFees) {
+    const shortfall = Number(totalFees - action.expectedAmount) / 1e6;
+    throw new Error(
+      `Insufficient amount for fees: expected ${Number(action.expectedAmount) / 1e6} USDC, ` +
+      `but need ${Number(totalFees) / 1e6} USDC ` +
+      `(indexer: ${Number(action.feeConfig.indexerFee) / 1e6}, ` +
+      `relayer: ${Number(action.feeConfig.relayerFee) / 1e6}, ` +
+      `protocol: ${Number(protocolFee) / 1e6}, ` +
+      `reimbursement: ${Number(action.funding.maxReimbursement) / 1e6}). ` +
+      `Shortfall: ${shortfall.toFixed(6)} USDC. ` +
+      `💡 Increase burn amount to cover all fees.`
+    );
   }
 
   // Validate funding arrays match

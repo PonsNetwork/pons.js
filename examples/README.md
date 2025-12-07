@@ -1,165 +1,552 @@
-# @pons-network/sdk Examples
+# Pons Network SDK - Examples & Integration Guide
 
-This guide shows how to integrate `@pons-network/sdk` into your DApps and Node.js applications for cross-chain USDC transfers with programmable execution.
+Complete guide for integrating **Pons Network** into your DApps. Build seamless cross-chain experiences with decentralized execution.
 
-## Installation
+## Table of Contents
+
+- [Installation & Setup](#installation--setup)
+- [Understanding the Architecture](#understanding-the-architecture)
+- [Understanding Pons Fees](#understanding-pons-fees)
+- [Basic Examples](#basic-examples)
+- [Advanced Examples](#advanced-examples)
+- [Frontend Integration](#frontend-integration)
+- [Node.js Integration](#nodejs-integration)
+- [Running Your Own Operator](#running-your-own-operator)
+
+---
+
+## Installation & Setup
 
 ```bash
 npm install @pons-network/sdk viem
 ```
 
----
-
-## Quick Start
-
-### 1. Basic Setup
+### Initialize Client
 
 ```typescript
-import { PonsClient, ActionBuilder, arcTestnet, sepolia } from '@pons-network/sdk';
+import { PonsClient, Chain } from '@pons-network/sdk';
 
-// Initialize client (uses gateway.pons.sh by default)
-const pons = new PonsClient({
-  sourceChain: arcTestnet,           // Source chain config
-  destinationChain: sepolia,         // Destination chain config
-  factoryAddress: '0x...',           // SmartAccountFactory address
+// Initialize Pons client
+const pons = await PonsClient.create({
+  from: Chain.SEPOLIA,           // Source chain
+  to: Chain.ARC_TESTNET,         // Destination chain
+  sourceRpcUrl: process.env.SEPOLIA_RPC_URL,
+  destinationRpcUrl: process.env.ARC_RPC_URL,
 });
 
-await pons.initialize();
-```
-
-### Custom Gateway URL
-
-```typescript
-// Use a custom gateway (self-hosted or regional)
-const pons = new PonsClient({
-  sourceChain: arcTestnet,
-  destinationChain: sepolia,
-  factoryAddress: '0x...',
-  gatewayUrl: 'https://gateway-eu.pons.sh', // Custom gateway
-});
-
-// Or use direct Pons Relay (advanced)
-const ponsDirect = new PonsClient({
-  sourceChain: arcTestnet,
-  destinationChain: sepolia,
-  factoryAddress: '0x...',
-  ponsRelayUrl: 'http://localhost:8645', // Direct relay connection
-});
+// Get user's Smart Account address (deterministic across all chains!)
+const smartAccount = await pons.calculateSmartAccountAddress(userAddress, 0n);
+console.log(`Smart Account: ${smartAccount}`);
 ```
 
 ---
 
-## DApp Integration (Browser)
+## Understanding the Architecture
 
-### With wagmi + viem (React/Vue)
+Pons Network is a **decentralized cross-chain execution layer**.
+
+### How a Cross-Chain Transfer Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        PONS NETWORK FLOW                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  SOURCE CHAIN                 PONS NETWORK              DESTINATION CHAIN  │
+│  ┌───────────────┐           ┌───────────────┐         ┌───────────────┐   │
+│  │               │           │               │         │               │   │
+│  │ 1. User signs │           │ 3. Message    │         │ 5. Message    │   │
+│  │    action     │  ──────►  │    relayed    │ ──────► │    indexed    │   │
+│  │               │           │               │         │               │   │
+│  │ 2. Message    │           │ 4. Attestation│         │ 6. Action     │   │
+│  │    sent       │           │    verified   │         │    executed   │   │
+│  │               │           │               │         │               │   │
+│  └───────────────┘           └───────────────┘         └───────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+STEP 1-2: User signs action + sends message on source chain
+STEP 3-4: Pons Network relays and verifies the message
+STEP 5:   Indexer indexes the message on destination chain
+STEP 6:   Relayer executes the user's signed action
+```
+
+### Decentralized Operators
+
+| Component | Decentralization |
+|-----------|-----------------|
+| **Message Publishing** | Anyone can publish transfer messages |
+| **Indexers** | Permissionless - anyone can run an indexer |
+| **Relayers** | Permissionless - anyone can run a relayer |
+| **Smart Accounts** | Non-custodial - only owner can authorize actions |
+
+### Become an Operator
+
+Anyone can join Pons Network as an operator and earn income:
+
+- **Indexers** earn fees for indexing messages on destination chain
+- **Relayers** earn fees for executing actions
+
+See [Running Your Own Operator](#running-your-own-operator) below.
+
+---
+
+## Understanding Pons Fees
+
+Fees are **dynamic** - just like Ethereum gas! Pay more for faster execution, or save money with lower fees.
+
+### Dynamic Fee Model
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          DYNAMIC FEE MODEL                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ⚡ FAST - Pay above market rate                                            │
+│     → Operators prioritize your transaction                                │
+│     → Fastest execution                                                    │
+│                                                                             │
+│  🔄 STANDARD - Pay market rate                                              │
+│     → Normal execution speed                                               │
+│     → Balanced cost/speed                                                  │
+│                                                                             │
+│  🐢 ECONOMY - Pay below market rate                                         │
+│     → Slower execution                                                     │
+│     → Cheapest option                                                      │
+│                                                                             │
+│  Just like Ethereum gas - you choose speed vs cost!                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fee Breakdown
+
+```
+User sends: 15.000000 USDC
+       │
+       ├── Network Fee (~0.01%):    Cross-chain relay
+       │
+       └── Expected Amount:         Arrives at Smart Account
+               │
+               ├── Protocol Fee:    Pons treasury
+               ├── Indexer Fee:     Indexer operator (DYNAMIC)
+               ├── Relayer Fee:     Relayer operator (DYNAMIC)
+               │
+               └── Amount for Action: Your action
+```
+
+### Fee Calculation Examples
 
 ```typescript
-import { useWalletClient, useAccount } from 'wagmi';
-import { PonsClient, ActionBuilder, arcTestnet, sepolia, parseUSDC } from '@pons-network/sdk';
+import { calculateFeesSync } from '@pons-network/sdk';
+import { parseUnits, formatUnits } from 'viem';
 
-function SwapComponent() {
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+// Standard fees (market rate)
+const standardFees = calculateFeesSync(parseUnits('15', 6));
+console.log(`Standard: ${formatUnits(standardFees.amountForAction, 6)} USDC for action`);
 
-  async function executeCrossChainSwap() {
-    const pons = new PonsClient({
-      sourceChain: arcTestnet,
-      destinationChain: sepolia,
-      factoryAddress: '0x...',
-    });
-    
-    await pons.initialize();
+// Fast execution (2x fees)
+const fastFees = calculateFeesSync(parseUnits('15', 6), {
+  indexerFee: parseUnits('0.2', 6),   // Higher indexer fee
+  relayerFee: parseUnits('0.3', 6),   // Higher relayer fee
+});
+console.log(`Fast: ${formatUnits(fastFees.amountForAction, 6)} USDC for action`);
 
-    // Build the action to execute on destination chain
-    const action = {
-      target: UNISWAP_ROUTER,           // Contract to call
-      callData: swapCalldata,            // Encoded swap call
+// Economy (0.5x fees - slower but cheaper)
+const economyFees = calculateFeesSync(parseUnits('15', 6), {
+  indexerFee: parseUnits('0.05', 6),  // Lower indexer fee
+  relayerFee: parseUnits('0.08', 6),  // Lower relayer fee
+});
+console.log(`Economy: ${formatUnits(economyFees.amountForAction, 6)} USDC for action`);
+```
+
+### Two Ways to Calculate Fees
+
+#### Method 1: "I want to send X USDC" → `calculateFeesSync()`
+
+```typescript
+const fees = calculateFeesSync(parseUnits('15', 6));
+// fees.amountForAction = how much available for your action
+```
+
+#### Method 2: "I need X USDC for my action" → `calculateBurnForAction()`
+
+```typescript
+const fees = calculateBurnForAction(parseUnits('10', 6));
+// fees.burnAmount = how much user needs to send
+```
+
+---
+
+## Basic Examples
+
+### 1. Simple Bridge
+
+Send USDC cross-chain to your Smart Account.
+
+```typescript
+import { PonsClient, Chain, calculateFeesSync } from '@pons-network/sdk';
+import { parseUnits, formatUnits } from 'viem';
+
+async function simpleBridge(walletClient: WalletClient, amount: string) {
+  const pons = await PonsClient.create({
+    from: Chain.SEPOLIA,
+    to: Chain.ARC_TESTNET,
+    sourceRpcUrl: process.env.SEPOLIA_RPC_URL!,
+    destinationRpcUrl: process.env.ARC_RPC_URL!,
+  });
+
+  const fees = calculateFeesSync(parseUnits(amount, 6));
+
+  console.log(`🌉 Cross-Chain Bridge`);
+  console.log(`   Send: ${formatUnits(fees.burnAmount, 6)} USDC`);
+  console.log(`   Receive: ${formatUnits(fees.amountForAction, 6)} USDC`);
+
+  // Send message on source chain
+  const result = await pons.executeCCTPTransfer({
+    amount: fees.burnAmount,
+    action: {
+      target: '0x0000000000000000000000000000000000000000',
+      callData: '0x',
       value: 0n,
       feeConfig: {
         paymentToken: USDC_ADDRESS,
-        indexerFee: parseUSDC('0.10'),   // 0.10 USDC
-        relayerFee: parseUSDC('0.20'),   // 0.20 USDC
+        indexerFee: fees.indexerFee,
+        relayerFee: fees.relayerFee,
       },
-    };
-
-    // Execute cross-chain transfer
-    const result = await pons.executeCCTPTransfer(
-      {
-        amount: parseUSDC('100'),        // 100 USDC to bridge
-        action,
+      permit2Setup: [],
+      funding: {
+        ethNeeded: 0n,
+        tokensNeeded: [],
+        tokenAmounts: [],
+        maxReimbursement: 0n,
       },
-      walletClient
-    );
+    },
+  }, walletClient);
 
-    console.log('Transfer initiated:', result.txHash);
-    console.log('Smart Account:', result.smartAccountAddress);
+  console.log(`✅ Message sent!`);
+  console.log(`   TX: ${result.txHash}`);
+  console.log(`   Smart Account: ${result.smartAccountAddress}`);
+  console.log(`   Waiting for indexer and relayer...`);
 
-    // Track the transfer
-    const tracker = pons.trackTransfer(
-      result.txHash,
-      result.smartAccountAddress,
-      result.nonce
-    );
+  // Track the decentralized execution
+  const tracker = pons.trackTransfer(
+    result.txHash,
+    result.smartAccountAddress,
+    result.nonce
+  );
 
-    tracker.on('statusChange', (status) => {
-      console.log('Status:', status);
-    });
+  tracker.on('statusChange', (status) => {
+    console.log(`📡 Status: ${status}`);
+  });
 
-    tracker.on('completed', (data) => {
-      console.log('Transfer completed!', data);
-    });
-  }
-
-  return <button onClick={executeCrossChainSwap}>Swap Cross-Chain</button>;
+  return result;
 }
 ```
 
-### With Privy
+### 2. Cross-Chain Swap
+
+Swap USDC on source chain for tokens on destination chain.
 
 ```typescript
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { PonsClient, parseUSDC } from '@pons-network/sdk';
+async function crossChainSwap(
+  walletClient: WalletClient,
+  usdcAmount: string,
+  minOutputAmount: bigint,
+  speedOption: 'fast' | 'standard' | 'economy' = 'standard'
+) {
+  const pons = await PonsClient.create({
+    from: Chain.SEPOLIA,
+    to: Chain.ARC_TESTNET,
+    sourceRpcUrl: process.env.SEPOLIA_RPC_URL!,
+    destinationRpcUrl: process.env.ARC_RPC_URL!,
+  });
 
-function PrivySwap() {
-  const { authenticated } = usePrivy();
-  const { wallets } = useWallets();
+  const smartAccount = await pons.calculateSmartAccountAddress(
+    walletClient.account.address,
+    0n
+  );
 
-  async function swap() {
-    const wallet = wallets[0];
-    const provider = await wallet.getEthereumProvider();
-    
-    // Create viem wallet client from Privy
-    const walletClient = createWalletClient({
-      account: wallet.address as `0x${string}`,
-      transport: custom(provider),
-    });
+  // Dynamic fees based on speed preference
+  const feeOptions = {
+    fast: { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) },
+    standard: { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) },
+    economy: { indexerFee: parseUnits('0.05', 6), relayerFee: parseUnits('0.08', 6) },
+  };
 
-    const pons = new PonsClient({
-      sourceChain: arcTestnet,
-      destinationChain: sepolia,
-      factoryAddress: '0x...',
-    });
+  const fees = calculateFeesSync(parseUnits(usdcAmount, 6), feeOptions[speedOption]);
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
 
-    await pons.initialize();
+  console.log(`🔄 Cross-Chain Swap (${speedOption} mode)`);
+  console.log(`   Send: ${formatUnits(fees.burnAmount, 6)} USDC`);
+  console.log(`   Swap: ${formatUnits(fees.amountForAction, 6)} USDC → WETH`);
 
-    const result = await pons.executeCCTPTransfer(
-      {
-        amount: parseUSDC('50'),
-        action: {
-          target: '0x0000000000000000000000000000000000000000', // No action = simple bridge
-          callData: '0x',
-          feeConfig: {
-            paymentToken: USDC_ADDRESS,
-            indexerFee: parseUSDC('0.05'),
-            relayerFee: parseUSDC('0.10'),
-          },
-        },
+  const swapCalldata = encodeFunctionData({
+    abi: UNISWAP_ABI,
+    functionName: 'exactInputSingle',
+    args: [{
+      tokenIn: USDC_ADDRESS,
+      tokenOut: WETH_ADDRESS,
+      fee: 3000,
+      recipient: smartAccount,
+      deadline,
+      amountIn: fees.amountForAction,
+      amountOutMinimum: minOutputAmount,
+      sqrtPriceLimitX96: 0n,
+    }],
+  });
+
+  const result = await pons.executeCCTPTransfer({
+    amount: fees.burnAmount,
+    action: {
+      target: UNISWAP_ROUTER,
+      callData: swapCalldata,
+      value: 0n,
+      feeConfig: {
+        paymentToken: USDC_ADDRESS,
+        indexerFee: fees.indexerFee,
+        relayerFee: fees.relayerFee,
       },
-      walletClient
-    );
+      permit2Setup: [],
+      funding: {
+        ethNeeded: 0n,
+        tokensNeeded: [],
+        tokenAmounts: [],
+        maxReimbursement: fees.amountForAction,
+      },
+    },
+  }, walletClient);
 
-    console.log('Bridged!', result);
-  }
+  console.log(`✅ Message sent! Decentralized operators will complete the swap.`);
+  
+  return result;
+}
+
+// Usage with different speed options
+await crossChainSwap(wallet, '15', minOutput, 'fast');     // Pay more, faster
+await crossChainSwap(wallet, '15', minOutput, 'standard'); // Market rate
+await crossChainSwap(wallet, '15', minOutput, 'economy');  // Pay less, slower
+```
+
+---
+
+## Advanced Examples
+
+### 3. NFT Purchase
+
+Buy an NFT on destination chain using USDC from source chain.
+
+```typescript
+async function buyNFT(
+  walletClient: WalletClient,
+  nftContract: Address,
+  tokenId: bigint,
+  nftPriceEth: number,
+  ethPriceUsdc: number
+) {
+  const pons = await PonsClient.create({
+    from: Chain.SEPOLIA,
+    to: Chain.ARC_TESTNET,
+    sourceRpcUrl: process.env.SEPOLIA_RPC_URL!,
+    destinationRpcUrl: process.env.ARC_RPC_URL!,
+  });
+
+  const nftPriceUsdc = nftPriceEth * ethPriceUsdc;
+  const ethNeeded = parseEther(nftPriceEth.toString());
+  const fees = calculateBurnForAction(parseUnits(nftPriceUsdc.toFixed(6), 6));
+  
+  console.log(`🎨 Cross-Chain NFT Purchase`);
+  console.log(`   NFT: ${nftPriceEth} ETH (~${nftPriceUsdc} USDC)`);
+  console.log(`   User sends: ${formatUnits(fees.burnAmount, 6)} USDC`);
+
+  const mintCalldata = encodeFunctionData({
+    abi: NFT_ABI,
+    functionName: 'mint',
+    args: [tokenId],
+  });
+
+  const result = await pons.executeCCTPTransfer({
+    amount: fees.burnAmount,
+    action: {
+      target: nftContract,
+      callData: mintCalldata,
+      value: ethNeeded,
+      feeConfig: {
+        paymentToken: USDC_ADDRESS,
+        indexerFee: fees.indexerFee,
+        relayerFee: fees.relayerFee,
+      },
+      permit2Setup: [],
+      funding: {
+        ethNeeded: ethNeeded,
+        tokensNeeded: [],
+        tokenAmounts: [],
+        maxReimbursement: fees.amountForAction,
+      },
+    },
+  }, walletClient);
+
+  return result;
+}
+```
+
+### 4. Game Actions
+
+Execute game actions cross-chain with fee optimization.
+
+```typescript
+const ITEM_PRICES = {
+  sword: parseUnits('5', 6),
+  shield: parseUnits('3', 6),
+  potion: parseUnits('1', 6),
+};
+
+async function buyGameItem(
+  walletClient: WalletClient,
+  itemId: bigint,
+  itemPrice: bigint,
+  prioritize: boolean = false
+) {
+  const pons = await PonsClient.create({
+    from: Chain.SEPOLIA,
+    to: Chain.ARC_TESTNET,
+    sourceRpcUrl: process.env.SEPOLIA_RPC_URL!,
+    destinationRpcUrl: process.env.ARC_RPC_URL!,
+  });
+
+  // Dynamic fees - pay more if you want the item faster!
+  const feeConfig = prioritize
+    ? { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) }
+    : { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) };
+
+  const fees = calculateBurnForAction(itemPrice, feeConfig);
+
+  console.log(`🎮 Cross-Chain Game Purchase ${prioritize ? '(PRIORITY)' : ''}`);
+  console.log(`   Item: ${formatUnits(itemPrice, 6)} USDC`);
+  console.log(`   User sends: ${formatUnits(fees.burnAmount, 6)} USDC`);
+
+  const buyCalldata = encodeFunctionData({
+    abi: GAME_ABI,
+    functionName: 'buyItem',
+    args: [itemId],
+  });
+
+  const result = await pons.executeCCTPTransfer({
+    amount: fees.burnAmount,
+    action: {
+      target: GAME_CONTRACT,
+      callData: buyCalldata,
+      value: 0n,
+      feeConfig: {
+        paymentToken: USDC_ADDRESS,
+        indexerFee: fees.indexerFee,
+        relayerFee: fees.relayerFee,
+      },
+      permit2Setup: [],
+      funding: {
+        ethNeeded: 0n,
+        tokensNeeded: [USDC_ADDRESS],
+        tokenAmounts: [itemPrice],
+        maxReimbursement: fees.amountForAction,
+      },
+    },
+  }, walletClient);
+
+  return result;
+}
+```
+
+### 5. Batch Actions
+
+Execute multiple actions in a single cross-chain transaction.
+
+```typescript
+async function batchSwapAndStake(walletClient: WalletClient, amount: string) {
+  const pons = await PonsClient.create({
+    from: Chain.SEPOLIA,
+    to: Chain.ARC_TESTNET,
+    sourceRpcUrl: process.env.SEPOLIA_RPC_URL!,
+    destinationRpcUrl: process.env.ARC_RPC_URL!,
+  });
+
+  const fees = calculateFeesSync(parseUnits(amount, 6));
+
+  console.log(`⚡ Cross-Chain Batch: Swap + Stake`);
+  console.log(`   User sends: ${formatUnits(fees.burnAmount, 6)} USDC`);
+
+  const action = new ActionBuilder()
+    .addCall(USDC_ADDRESS, approveSwapCalldata)
+    .addCall(UNISWAP_ROUTER, swapCalldata)
+    .addCall(WETH_ADDRESS, approveStakeCalldata)
+    .addCall(STAKING_CONTRACT, stakeCalldata)
+    .withFees(USDC_ADDRESS, fees.indexerFee, fees.relayerFee)
+    .build(BigInt(Date.now()), BigInt(Math.floor(Date.now() / 1000) + 3600), fees.expectedAmount);
+
+  const result = await pons.executeCCTPTransfer({
+    amount: fees.burnAmount,
+    action: { /* ... */ },
+  }, walletClient);
+
+  return result;
+}
+```
+
+---
+
+## Frontend Integration
+
+### React + wagmi
+
+```typescript
+import { useWalletClient, useAccount } from 'wagmi';
+import { PonsClient, Chain, calculateFeesSync, TransferStatus } from '@pons-network/sdk';
+import { useState } from 'react';
+
+function usePons() {
+  const { data: walletClient } = useWalletClient();
+  const { address } = useAccount();
+  const [speedMode, setSpeedMode] = useState<'fast' | 'standard' | 'economy'>('standard');
+
+  const bridge = async (amount: string) => {
+    if (!walletClient) throw new Error('Not initialized');
+    
+    const pons = await PonsClient.create({
+      from: Chain.SEPOLIA,
+      to: Chain.ARC_TESTNET,
+      sourceRpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC!,
+      destinationRpcUrl: process.env.NEXT_PUBLIC_ARC_RPC!,
+    });
+
+    // Dynamic fees based on user preference
+    const feeOptions = {
+      fast: { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) },
+      standard: { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) },
+      economy: { indexerFee: parseUnits('0.05', 6), relayerFee: parseUnits('0.08', 6) },
+    };
+    
+    const fees = calculateFeesSync(parseUnits(amount, 6), feeOptions[speedMode]);
+    
+    return await pons.executeCCTPTransfer({
+      amount: fees.burnAmount,
+      action: { /* ... */ },
+    }, walletClient);
+  };
+
+  return { bridge, speedMode, setSpeedMode };
+}
+
+// UI Component
+function SpeedSelector({ value, onChange }) {
+  return (
+    <div>
+      <label>Execution Speed:</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="fast">⚡ Fast (higher fees)</option>
+        <option value="standard">🔄 Standard</option>
+        <option value="economy">🐢 Economy (lower fees)</option>
+      </select>
+    </div>
+  );
 }
 ```
 
@@ -167,314 +554,137 @@ function PrivySwap() {
 
 ## Node.js Integration
 
-### Basic Transfer
-
 ```typescript
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { PonsClient, ActionBuilder, arcTestnet, sepolia, parseUSDC } from '@pons-network/sdk';
+import { PonsClient, Chain, calculateFeesSync, TransferStatus } from '@pons-network/sdk';
 
 async function main() {
-  // Create wallet from private key
-  const account = privateKeyToAccount('0x...');
+  const account = privateKeyToAccount(process.env.PRIVATE_KEY as Address);
   const walletClient = createWalletClient({
     account,
-    transport: http(arcTestnet.rpcUrl),
+    transport: http(process.env.SEPOLIA_RPC_URL),
   });
 
-  // Initialize Pons client (uses gateway.pons.sh by default)
-  const pons = new PonsClient({
-    sourceChain: arcTestnet,
-    destinationChain: sepolia,
-    factoryAddress: '0x...',
-    // gatewayUrl: 'https://my-gateway.example.com', // Optional: custom gateway
+  const pons = await PonsClient.create({
+    from: Chain.SEPOLIA,
+    to: Chain.ARC_TESTNET,
+    sourceRpcUrl: process.env.SEPOLIA_RPC_URL!,
+    destinationRpcUrl: process.env.ARC_RPC_URL!,
   });
 
-  await pons.initialize();
-
-  // Simple bridge (no action on destination)
-  const result = await pons.executeCCTPTransfer(
-    {
-      amount: parseUSDC('100'),
-      action: {
-        target: '0x0000000000000000000000000000000000000000',
-        callData: '0x',
-        feeConfig: {
-          paymentToken: sepolia.usdc,
-          indexerFee: parseUSDC('0.10'),
-          relayerFee: parseUSDC('0.20'),
-        },
-      },
-    },
-    walletClient
-  );
-
-  console.log('Transfer initiated:', result);
+  const fees = calculateFeesSync(parseUnits('100', 6));
   
-  // Track completion
+  console.log(`Sending message on source chain...`);
+
+  const result = await pons.executeCCTPTransfer({
+    amount: fees.burnAmount,
+    action: { /* ... */ },
+  }, walletClient);
+
+  console.log(`TX: ${result.txHash}`);
+  console.log(`Waiting for message to be indexed on destination...`);
+
   const tracker = pons.trackTransfer(
     result.txHash,
     result.smartAccountAddress,
     result.nonce
   );
 
-  tracker.on('completed', () => {
-    console.log('Transfer completed!');
-    process.exit(0);
-  });
-
-  tracker.on('failed', (error) => {
-    console.error('Transfer failed:', error);
-    process.exit(1);
+  tracker.on('statusChange', (status) => {
+    console.log(`Status: ${status}`);
+    
+    if (status === TransferStatus.EXECUTED) {
+      console.log('✅ Action executed!');
+      pons.stop();
+      process.exit(0);
+    }
   });
 }
 
-main();
+main().catch(console.error);
 ```
 
 ---
 
-## ActionBuilder Examples
+## Running Your Own Operator
 
-### Simple Contract Call
+Pons Network is **permissionless** - anyone can run an indexer or relayer and earn fees!
 
-```typescript
-import { ActionBuilder, parseUSDC } from '@pons-network/sdk';
-import { encodeFunctionData } from 'viem';
+### Why Become an Operator?
 
-// Encode your contract call
-const calldata = encodeFunctionData({
-  abi: PROTOCOL_ABI,
-  functionName: 'deposit',
-  args: [amount, recipient],
-});
+- **Earn fees** - Dynamic fees based on market demand
+- **Support decentralization** - More operators = more resilient network
+- **No permission needed** - Just run the software and start earning
 
-// Build action with fluent API
-const action = new ActionBuilder()
-  .addCall(PROTOCOL_ADDRESS, calldata)
-  .withFees(USDC_ADDRESS, parseUSDC('0.10'), parseUSDC('0.20'))
-  .build(nonce, deadline, bridgeAmount);
+### Running an Indexer
+
+Indexers monitor messages and index them on the destination chain.
+
+```bash
+# Clone the resolver
+git clone https://github.com/pons-network/resolver
+cd resolver
+
+# Configure environment
+cp env.example .env
+# Edit .env with your RPC URLs and private key
+
+# Run as indexer
+docker-compose --profile indexer up -d
 ```
 
-### Multi-Step Batch Action
+### Running a Relayer
 
-```typescript
-// Approve + Swap + Stake in one transaction
-const approveCalldata = encodeFunctionData({
-  abi: ERC20_ABI,
-  functionName: 'approve',
-  args: [UNISWAP_ROUTER, amount],
-});
+Relayers execute user actions after messages are indexed.
 
-const swapCalldata = encodeFunctionData({
-  abi: UNISWAP_ABI,
-  functionName: 'exactInputSingle',
-  args: [swapParams],
-});
-
-const stakeCalldata = encodeFunctionData({
-  abi: STAKING_ABI,
-  functionName: 'stake',
-  args: [outputAmount],
-});
-
-const action = new ActionBuilder()
-  .addCall(USDC_ADDRESS, approveCalldata)
-  .addCall(UNISWAP_ROUTER, swapCalldata)
-  .addCall(STAKING_CONTRACT, stakeCalldata)
-  .withFees(USDC_ADDRESS, parseUSDC('0.10'), parseUSDC('0.50'))
-  .build(nonce, deadline, bridgeAmount);
+```bash
+# Run as relayer (executor)
+docker-compose --profile executor up -d
 ```
 
-### Action with ETH Value
+### Running Both
 
-```typescript
-// Wrap ETH on destination chain
-const wrapCalldata = encodeFunctionData({
-  abi: WETH_ABI,
-  functionName: 'deposit',
-  args: [],
-});
-
-const action = new ActionBuilder()
-  .addCall(WETH_ADDRESS, wrapCalldata, parseEther('0.1')) // Send 0.1 ETH
-  .withFees(USDC_ADDRESS, parseUSDC('0.10'), parseUSDC('0.20'))
-  .needsEth(parseEther('0.1'), parseUSDC('50')) // Request ETH from relayer
-  .build(nonce, deadline, bridgeAmount);
+```bash
+# Run as full resolver (indexer + relayer)
+docker-compose --profile both up -d
 ```
 
-### With Permit2 (Gasless Token Approvals)
+### Operator Economics
 
-```typescript
-const action = new ActionBuilder()
-  .addCall(AAVE_POOL, depositCalldata)
-  .withPermit2(USDC_ADDRESS, AAVE_POOL, depositAmount)
-  .withFees(USDC_ADDRESS, parseUSDC('0.05'), parseUSDC('0.15'))
-  .build(nonce, deadline, bridgeAmount);
-```
+Operators compete in a **free market**:
+- Users who pay higher fees get prioritized
+- Operators choose which transactions to process based on profitability
+- Market equilibrium finds fair prices based on supply/demand
 
 ---
 
-## Transfer Tracking
+## Transfer Status
 
-```typescript
-import { TransferStatus } from '@pons-network/sdk';
+Track your cross-chain transfers through these stages:
 
-const tracker = pons.trackTransfer(txHash, smartAccount, nonce);
-
-// Listen to all status changes
-tracker.on('statusChange', (status: TransferStatus, data?: any) => {
-  switch (status) {
-    case TransferStatus.PENDING:
-      console.log('Waiting for source confirmation...');
-      break;
-    case TransferStatus.BURNED:
-      console.log('USDC burned on source chain');
-      break;
-    case TransferStatus.ATTESTED:
-      console.log('Circle attestation received');
-      break;
-    case TransferStatus.MINTING:
-      console.log('Minting on destination...');
-      break;
-    case TransferStatus.EXECUTING:
-      console.log('Executing action...');
-      break;
-    case TransferStatus.COMPLETED:
-      console.log('Transfer complete!');
-      break;
-    case TransferStatus.FAILED:
-      console.log('Transfer failed:', data);
-      break;
-  }
-});
-
-// Or use specific events
-tracker.on('completed', (result) => {
-  console.log('Success! Destination TX:', result.txHash);
-});
-
-tracker.on('failed', (error) => {
-  console.error('Failed:', error);
-});
-
-// Stop tracking when done
-tracker.stop();
-```
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Waiting for source chain confirmation |
+| `SENT` | Message sent on source chain |
+| `ATTESTED` | Attestation verified |
+| `INDEXING` | Indexer processing |
+| `INDEXED` | Message indexed on destination |
+| `EXECUTING` | Relayer executing action |
+| `EXECUTED` | ✅ Complete! |
+| `FAILED` | ❌ Action failed |
 
 ---
 
-## Utility Functions
+## Why Pons Network?
 
-```typescript
-import {
-  parseUSDC,           // "100" -> 100000000n (6 decimals)
-  formatUSDC,          // 100000000n -> "100.00"
-  calculateDeadline,   // Get deadline timestamp
-  truncateAddress,     // "0x1234...5678"
-  isValidAddress,      // Validate address format
-} from '@pons-network/sdk';
+| Traditional Approach | Pons Network |
+|---------------------|--------------|
+| Centralized bridges | Decentralized operators |
+| Fixed fees | Dynamic fees (like ETH gas) |
+| Single points of failure | Permissionless & resilient |
+| Switch networks | Stay on your chain |
+| Multiple transactions | One signature |
+| Need gas on each chain | Fees in USDC only |
 
-// Parse human-readable amounts
-const amount = parseUSDC('100.50');  // 100500000n
-
-// Format for display
-const display = formatUSDC(100500000n);  // "100.50"
-
-// Calculate deadline (30 minutes from now)
-const deadline = calculateDeadline(30 * 60);
-
-// Truncate address for UI
-const short = truncateAddress('0x1234567890abcdef1234567890abcdef12345678');
-// -> "0x1234...5678"
-```
-
----
-
-## Chain Configuration
-
-### Using Built-in Configs
-
-```typescript
-import { arcTestnet, sepolia, ethereum } from '@pons-network/sdk';
-
-// Arc Testnet -> Sepolia
-const pons = new PonsClient({
-  sourceChain: arcTestnet,
-  destinationChain: sepolia,
-  factoryAddress: '0x...',
-});
-```
-
-### Custom Chain Config
-
-```typescript
-import { createChainConfig } from '@pons-network/sdk';
-
-const customChain = createChainConfig({
-  id: 42161,
-  name: 'Arbitrum One',
-  domain: 3,  // CCTP domain
-  rpcUrl: 'https://arb1.arbitrum.io/rpc',
-  usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-  tokenMessenger: '0x...',
-  messageTransmitter: '0x...',
-});
-```
-
----
-
-## Error Handling
-
-```typescript
-try {
-  const result = await pons.executeCCTPTransfer(params, walletClient);
-} catch (error) {
-  if (error.message.includes('Insufficient USDC balance')) {
-    // Handle insufficient funds
-  } else if (error.message.includes('User rejected')) {
-    // Handle user rejection
-  } else if (error.message.includes('Deadline has passed')) {
-    // Handle expired deadline
-  } else {
-    // Handle other errors
-    console.error('Transfer failed:', error);
-  }
-}
-```
-
----
-
-## TypeScript Types
-
-```typescript
-import type {
-  IAction,
-  ActionOptions,
-  FeeConfig,
-  CCTPTransferParams,
-  TransferResult,
-  ChainConfig,
-  PonsClientConfig,
-} from '@pons-network/sdk';
-
-// Full type safety
-const action: ActionOptions = {
-  target: '0x...',
-  callData: '0x...',
-  feeConfig: {
-    paymentToken: '0x...',
-    indexerFee: 100000n,
-    relayerFee: 200000n,
-  },
-};
-```
-
----
-
-## More Resources
-
-- [Pons SDK Documentation](https://docs.pons.network)
-- [GitHub Repository](https://github.com/pons-network/pons-sdk)
-- [CCTP Documentation](https://developers.circle.com/stablecoins/cctp)
-
+**Pons Network** provides a decentralized execution layer, giving your users a seamless multi-chain experience.

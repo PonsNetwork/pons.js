@@ -61,6 +61,34 @@ export {
   bytes32ToAddress,
 } from './cctp/index.js';
 
+// CCTP Fees & Fee Calculations
+export {
+  // Main functions for apps
+  calculateFeesForBurn,
+  calculateFeesSync,
+  DEFAULT_FEES,
+  
+  // Reverse calculations for dynamic actions (NFTs, games, etc.)
+  calculateBurnForAction,
+  calculateFeesForActionType,
+  validateActionFeasibility,
+  
+  // Lower-level functions
+  fetchCCTPFees,
+  calculateCCTPFee,
+  getExpectedAmount,
+  getMinimumBurnAmount,
+  validateBurnAmount,
+  calculateMinExpectedAmount,
+  calculateMinBurnAmount,
+  getFeeBreakdown,
+  
+  // Types
+  type CCTPFeeConfig,
+  type CCTPFeesResponse,
+  type PonsFeeBreakdown,
+} from './cctp/fees.js';
+
 // Waku (legacy - prefer PonsGatewayClient)
 export { WakuManager, WakuRestManager } from './waku/index.js';
 
@@ -72,6 +100,8 @@ export type {
   TransferStatusResponse,
   NodeInfoResponse,
   TransfersResponse,
+  ChainConfigResponse,
+  GatewayConfigResponse,
 } from './gateway/index.js';
 
 // Polling
@@ -79,6 +109,7 @@ export { TransferTracker } from './polling/index.js';
 
 // Config & Chains
 export { 
+  Chain,
   arcTestnet, 
   sepolia, 
   ethereum, 
@@ -88,6 +119,7 @@ export {
   isChainSupported,
   CHAINS,
   SUPPORTED_ROUTES,
+  type ChainName,
   type SupportedChain,
   type FullChainConfig,
 } from './config/chains.js';

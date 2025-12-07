@@ -64,6 +64,24 @@ export interface TransfersResponse {
   total: number;
 }
 
+export interface ChainConfigResponse {
+  id: number;
+  name: string;
+  domain: number;
+  tokenMessenger: string;
+  messageTransmitter: string;
+  usdc: string;
+  factory: string | null;
+}
+
+export interface GatewayConfigResponse {
+  version: string;
+  timestamp: number;
+  chains: Record<string, ChainConfigResponse>;
+  routes: Array<{ from: string; to: string; status: string }>;
+  gateway: string;
+}
+
 export class PonsGatewayClient {
   private url: string;
   private timeout: number;
@@ -106,6 +124,31 @@ export class PonsGatewayClient {
    */
   async getInfo(): Promise<NodeInfoResponse> {
     return this.request('GET', '/v1/info');
+  }
+
+  /**
+   * Get chain configuration from gateway
+   * 
+   * Returns factory addresses, CCTP contracts, and supported routes.
+   * Use this to dynamically configure the SDK without hardcoding addresses.
+   * 
+   * @example
+   * const config = await gateway.getConfig();
+   * console.log(config.chains['arc-testnet'].factory);
+   */
+  async getConfig(): Promise<GatewayConfigResponse> {
+    return this.request('GET', '/v1/config');
+  }
+
+  /**
+   * Get factory address for a specific chain
+   * 
+   * @param chainName Chain name (e.g., 'arc-testnet', 'sepolia')
+   * @returns Factory address or null if not deployed
+   */
+  async getFactory(chainName: string): Promise<string | null> {
+    const config = await this.getConfig();
+    return config.chains[chainName]?.factory ?? null;
   }
 
   /**

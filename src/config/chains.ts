@@ -2,12 +2,34 @@ import type { Address } from 'viem';
 import type { ChainConfig } from '../types.js';
 
 /**
+ * Chain name constants - use these instead of strings!
+ * 
+ * @example
+ * import { Chain, PonsClient } from '@pons/sdk';
+ * 
+ * const pons = await PonsClient.create({
+ *   from: Chain.SEPOLIA,
+ *   to: Chain.ARC_TESTNET,
+ *   sourceRpcUrl: 'https://...',
+ *   destinationRpcUrl: 'https://...',
+ * });
+ */
+export const Chain = {
+  /** Arc Testnet (Chain ID: 5042002) */
+  ARC_TESTNET: 'arc-testnet',
+  /** Sepolia Testnet (Chain ID: 11155111) */
+  SEPOLIA: 'sepolia',
+  /** Ethereum Mainnet (Chain ID: 1) */
+  ETHEREUM: 'ethereum',
+} as const;
+
+export type ChainName = typeof Chain[keyof typeof Chain];
+
+/**
  * Supported chain names for easy reference
  */
 export type SupportedChain = 
-  | 'arc-testnet' 
-  | 'sepolia' 
-  | 'ethereum'
+  | ChainName
   | number; // Chain ID
 
 /**
@@ -29,7 +51,7 @@ export const arcTestnet: FullChainConfig = {
   tokenMessenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA' as Address,
   messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as Address,
   usdc: '0x3600000000000000000000000000000000000000' as Address,
-  factory: '0xd1164a315228b0f77b3cd2a408ad5136c50ca389' as Address,
+  factory: '0x8654abbd9ef1767f20e899348df05c09ecd0d070' as Address, // Beacon Proxy Factory
 };
 
 /**
@@ -40,8 +62,8 @@ export const sepolia: FullChainConfig = {
   name: 'Sepolia',
   rpcUrl: 'https://sepolia.drpc.org',
   domain: 0,
-  tokenMessenger: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5' as Address,
-  messageTransmitter: '0x7865fAfC2db2093669d92c0F33AeEF291086BEFD' as Address,
+  tokenMessenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA' as Address,
+  messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as Address,
   usdc: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
   // factory: undefined - not yet deployed
 };
@@ -121,7 +143,7 @@ export function createChainConfig(config: ChainConfig): ChainConfig {
  */
 export const SUPPORTED_ROUTES = [
   { from: 'sepolia', to: 'arc-testnet', status: 'active' },
-  { from: 'arc-testnet', to: 'sepolia', status: 'coming-soon' },
+  { from: 'arc-testnet', to: 'sepolia', status: 'active' },
   { from: 'ethereum', to: 'arc-testnet', status: 'coming-soon' },
 ] as const;
 

@@ -141,10 +141,11 @@ export interface ChainConfig {
 export interface CCTPTransferParams {
   action: ActionOptions;
   amount: bigint;
-  deadline?: bigint;  // Optional: defaults to 24h from now
-  nonce?: bigint;     // Optional: defaults to timestamp
-  salt?: bigint;      // Optional: for smart account deployment
-  maxFee?: bigint;    // Optional: CCTP max fee
+  deadline?: bigint;       // Optional: defaults to 24h from now
+  nonce?: bigint;          // Optional: defaults to timestamp
+  salt?: bigint;           // Optional: for smart account deployment
+  maxFee?: bigint;         // Optional: CCTP max fee
+  protocolFeeBps?: bigint; // Optional: Protocol fee in basis points (default: 10 = 0.1%)
 }
 
 /**

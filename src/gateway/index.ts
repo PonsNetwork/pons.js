@@ -12,5 +12,7 @@ export type {
   TransferStatusResponse,
   NodeInfoResponse,
   TransfersResponse,
+  ChainConfigResponse,
+  GatewayConfigResponse,
 } from './PonsGatewayClient.js';
 
