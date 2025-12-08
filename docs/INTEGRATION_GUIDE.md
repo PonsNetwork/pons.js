@@ -30,13 +30,13 @@ Complete step-by-step guide for integrating Pons Network into your DApp. Build s
 ### Installation
 
 ```bash
-npm install @pons-network/sdk viem
+npm install @pons-network/pons.js viem
 ```
 
 ### Quick Test
 
 ```typescript
-import { calculateFeesSync, DEFAULT_FEES } from '@pons-network/sdk';
+import { calculateFeesSync, DEFAULT_FEES } from '@pons-network/pons.js';
 import { parseUnits, formatUnits } from 'viem';
 
 // Test fee calculation
@@ -81,10 +81,10 @@ Pons Network is a **decentralized cross-chain execution layer**.
 │  9. Index message on destination chain                                      │
 │  10. Earn indexer fee                                                       │
 │                                                                              │
-│  RELAYERS (Permissionless)                                                   │
+│  RESOLVERS (Permissionless)                                                   │
 │  11. Monitor for indexed messages                                           │
 │  12. Execute user's signed action                                           │
-│  13. Earn relayer fee                                                       │
+│  13. Earn resolver fee                                                       │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -105,7 +105,7 @@ Pons Network is a **decentralized cross-chain execution layer**.
 ### Step 1: Initialize PonsClient
 
 ```typescript
-import { PonsClient, Chain } from '@pons-network/sdk';
+import { PonsClient, Chain } from '@pons-network/pons.js';
 
 const pons = await PonsClient.create({
   from: Chain.SEPOLIA,
@@ -121,13 +121,13 @@ const smartAccount = await pons.calculateSmartAccountAddress(userAddress, 0n);
 ### Step 2: Calculate Fees (Dynamic)
 
 ```typescript
-import { calculateFeesSync, calculateBurnForAction } from '@pons-network/sdk';
+import { calculateFeesSync, calculateBurnForAction } from '@pons-network/pons.js';
 
 // User chooses speed - fees are dynamic like ETH gas!
 const feeOptions = {
-  fast: { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) },
-  standard: { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) },
-  economy: { indexerFee: parseUnits('0.05', 6), relayerFee: parseUnits('0.08', 6) },
+  fast: { indexerFee: parseUnits('0.2', 6), resolverFee: parseUnits('0.3', 6) },
+  standard: { indexerFee: parseUnits('0.1', 6), resolverFee: parseUnits('0.15', 6) },
+  economy: { indexerFee: parseUnits('0.05', 6), resolverFee: parseUnits('0.08', 6) },
 };
 
 // Calculate with chosen fee level
@@ -169,7 +169,7 @@ const action = {
   feeConfig: {
     paymentToken: USDC_ADDRESS,
     indexerFee: fees.indexerFee,
-    relayerFee: fees.relayerFee,
+    resolverFee: fees.resolverFee,
   },
   permit2Setup: [],
   funding: {
@@ -185,20 +185,20 @@ const action = {
 
 ```typescript
 // Send message on source chain
-const result = await pons.executeCCTPTransfer({
+const result = await pons.execute({
   amount: fees.burnAmount,
   action,
 }, walletClient);
 
 console.log('Message TX:', result.txHash);
 console.log('Smart Account:', result.smartAccountAddress);
-console.log('Waiting for indexer and relayer...');
+console.log('Waiting for indexer and resolver...');
 ```
 
 ### Step 5: Track Status
 
 ```typescript
-import { TransferStatus } from '@pons-network/sdk';
+import { TransferStatus } from '@pons-network/pons.js';
 
 const tracker = pons.trackTransfer(
   result.txHash,
@@ -239,7 +239,7 @@ const action = {
   feeConfig: {
     paymentToken: USDC_ADDRESS,
     indexerFee: fees.indexerFee,
-    relayerFee: fees.relayerFee,
+    resolverFee: fees.resolverFee,
   },
   permit2Setup: [],
   funding: {
@@ -260,8 +260,8 @@ const action = {
   value: parseEther('0.01'), // ETH to send
   feeConfig: { ... },
   funding: {
-    ethNeeded: parseEther('0.01'), // Relayer provides this
-    maxReimbursement: fees.amountForAction, // Relayer gets USDC back
+    ethNeeded: parseEther('0.01'), // Resolver provides this
+    maxReimbursement: fees.amountForAction, // Resolver gets USDC back
   },
 };
 ```
@@ -269,13 +269,13 @@ const action = {
 #### Batch Actions
 
 ```typescript
-import { ActionBuilder } from '@pons-network/sdk';
+import { ActionBuilder } from '@pons-network/pons.js';
 
 const action = new ActionBuilder()
   .addCall(USDC_ADDRESS, approveCalldata)
   .addCall(UNISWAP_ROUTER, swapCalldata)
   .addCall(STAKING_CONTRACT, stakeCalldata)
-  .withFees(USDC_ADDRESS, fees.indexerFee, fees.relayerFee)
+  .withFees(USDC_ADDRESS, fees.indexerFee, fees.resolverFee)
   .build(nonce, deadline, fees.expectedAmount);
 ```
 
@@ -304,7 +304,7 @@ User signs + sends message
       INDEXED ─── Message indexed on destination
          │
          ▼
-    EXECUTING ─── Relayer executing action
+    EXECUTING ─── Resolver executing action
          │
          ▼
      EXECUTED ✓   Action complete!
@@ -316,7 +316,7 @@ User signs + sends message
 |------|-----|-----|
 | Send message | User | Network fee |
 | Index message | Indexer (decentralized) | Dynamic indexer fee |
-| Execute action | Relayer (decentralized) | Dynamic relayer fee |
+| Execute action | Resolver (decentralized) | Dynamic resolver fee |
 
 ---
 
@@ -360,17 +360,17 @@ Pons Network uses **dynamic fees** - just like Ethereum gas!
 const speedOptions = {
   fast: {
     indexerFee: parseUnits('0.2', 6),
-    relayerFee: parseUnits('0.3', 6),
+    resolverFee: parseUnits('0.3', 6),
     estimatedTime: '5-10 min',
   },
   standard: {
     indexerFee: parseUnits('0.1', 6),
-    relayerFee: parseUnits('0.15', 6),
+    resolverFee: parseUnits('0.15', 6),
     estimatedTime: '15-20 min',
   },
   economy: {
     indexerFee: parseUnits('0.05', 6),
-    relayerFee: parseUnits('0.08', 6),
+    resolverFee: parseUnits('0.08', 6),
     estimatedTime: '30+ min',
   },
 };
@@ -397,7 +397,7 @@ const fees = calculateFeesSync(amount, speedOptions[selectedSpeed]);
 
 ```typescript
 try {
-  await pons.executeCCTPTransfer(params, walletClient);
+  await pons.execute(params, walletClient);
 } catch (error) {
   if (error.message.includes('Insufficient USDC balance')) {
     showError('Not enough USDC in your wallet');
@@ -408,7 +408,7 @@ try {
 #### Pre-validate Before Signing
 
 ```typescript
-import { validateActionFeasibility } from '@pons-network/sdk';
+import { validateActionFeasibility } from '@pons-network/pons.js';
 
 const validation = validateActionFeasibility(sendAmount, actionCost);
 
@@ -452,9 +452,9 @@ A: Depends on the fees you pay!
 - **Standard**: ~15-20 minutes
 - **Economy (lower fees)**: ~30+ minutes
 
-### Q: Can I run my own indexer/relayer?
+### Q: Can I run my own indexer/resolver?
 
-A: Yes! Pons Network is permissionless. Anyone can run an indexer or relayer and earn fees. See the [resolver documentation](https://github.com/pons-network/resolver).
+A: Yes! Pons Network is permissionless. Anyone can run an indexer or resolver and earn fees. See the [resolver documentation](https://github.com/pons-network/resolver).
 
 ### Q: Why are fees dynamic?
 
@@ -470,7 +470,7 @@ A: Like Ethereum gas, dynamic fees create a competitive market:
 
 | Traditional Cross-Chain | Pons Network |
 |------------------------|--------------|
-| Centralized relayers | Decentralized operators |
+| Centralized resolvers | Decentralized operators |
 | Fixed fees | Dynamic fees (like ETH gas) |
 | Single points of failure | Permissionless & resilient |
 | Switch networks | Stay on your chain |

@@ -21,12 +21,12 @@ export enum TransferStatus {
 // ============ Core Types ============
 
 /**
- * Fee configuration for indexer and relayer payments
+ * Fee configuration for indexer and resolver payments
  */
 export interface FeeConfig {
   paymentToken: Address;   // Token to pay fees in (usually USDC)
   indexerFee: bigint;      // Fixed amount for indexer
-  relayerFee: bigint;      // Fixed amount for relayer
+  resolverFee: bigint;     // Fixed amount for resolver
 }
 
 /**
@@ -39,13 +39,13 @@ export interface Permit2Setup {
 }
 
 /**
- * Funding configuration - what relayer provides upfront
+ * Funding configuration - what resolver provides upfront
  */
 export interface FundingConfig {
-  ethNeeded: bigint;            // ETH relayer must send with tx
-  tokensNeeded: Address[];      // Tokens relayer must transfer
+  ethNeeded: bigint;            // ETH resolver must send with tx
+  tokensNeeded: Address[];      // Tokens resolver must transfer
   tokenAmounts: bigint[];       // Amounts for each token
-  maxReimbursement: bigint;     // Max USDC relayer can claim for fronting
+  maxReimbursement: bigint;     // Max USDC resolver can claim for fronting
 }
 
 // ============ Action Types ============
@@ -73,7 +73,7 @@ export interface IAction {
   // Permit2 setup (optional)
   permit2Setup: Permit2Setup[];
   
-  // Relayer funding (optional)
+  // Resolver funding (optional)
   funding: FundingConfig;
 }
 
@@ -117,7 +117,7 @@ export interface ActionOptions {
   // Permit2 (optional)
   permit2Setup?: Permit2Setup[];
   
-  // Relayer funding (optional, nested struct)
+  // Resolver funding (optional, nested struct)
   funding?: FundingConfig;
 }
 
@@ -136,7 +136,7 @@ export interface ChainConfig {
 // ============ Transfer Types ============
 
 /**
- * Parameters for executeCCTPTransfer
+ * Parameters for execute (cross-chain transfer)
  */
 export interface CCTPTransferParams {
   action: ActionOptions;
@@ -316,7 +316,7 @@ export interface TransferAnnouncement {
   feeConfig: {
     paymentToken: string;
     indexerFee: string;
-    relayerFee: string;
+    resolverFee: string;
   };
   
   // Funding config
@@ -370,7 +370,7 @@ export interface ActionExecuted {
   nonce: string;
   gasUsed: string;
   gasReimbursementUSDC: string;
-  relayerFeeUSDC: string;
+  resolverFeeUSDC: string;
   success: boolean;
 }
 

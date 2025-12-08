@@ -44,7 +44,7 @@ export class ActionBuilder {
   // Fees
   private _paymentToken: Address = '0x0000000000000000000000000000000000000000';
   private _indexerFee: bigint = 0n;
-  private _relayerFee: bigint = 0n;
+  private _resolverFee: bigint = 0n;
   
   // Permit2
   private _permit2Setup: Permit2Setup[] = [];
@@ -106,10 +106,10 @@ export class ActionBuilder {
   /**
    * Set fee configuration
    */
-  withFees(paymentToken: Address, indexerFee: bigint, relayerFee: bigint): this {
+  withFees(paymentToken: Address, indexerFee: bigint, resolverFee: bigint): this {
     this._paymentToken = paymentToken;
     this._indexerFee = indexerFee;
-    this._relayerFee = relayerFee;
+    this._resolverFee = resolverFee;
     return this;
   }
 
@@ -134,9 +134,9 @@ export class ActionBuilder {
   // ============ Funding Methods ============
 
   /**
-   * Request relayer to provide ETH
+   * Request resolver to provide ETH
    * @param ethNeeded Amount of ETH needed
-   * @param reimbursement How much USDC to pay relayer for fronting
+   * @param reimbursement How much USDC to pay resolver for fronting
    */
   needsEth(ethNeeded: bigint, reimbursement: bigint): this {
     this._ethNeeded = ethNeeded;
@@ -145,10 +145,10 @@ export class ActionBuilder {
   }
 
   /**
-   * Request relayer to provide a token
+   * Request resolver to provide a token
    * @param token Token address
    * @param amount Amount needed
-   * @param reimbursement How much USDC to pay relayer for fronting
+   * @param reimbursement How much USDC to pay resolver for fronting
    */
   needsToken(token: Address, amount: bigint, reimbursement: bigint): this {
     this._tokensNeeded.push(token);
@@ -187,7 +187,7 @@ export class ActionBuilder {
         feeConfig: {
           paymentToken: this._paymentToken,
           indexerFee: this._indexerFee,
-          relayerFee: this._relayerFee,
+          resolverFee: this._resolverFee,
         },
         permit2Setup: this._permit2Setup,
         funding: {
@@ -201,7 +201,7 @@ export class ActionBuilder {
 
     // Validate required fields
     if (this._paymentToken === '0x0000000000000000000000000000000000000000') {
-      throw new Error('ActionBuilder: fees not set. Call .withFees(token, indexer, relayer) first');
+      throw new Error('ActionBuilder: fees not set. Call .withFees(token, indexer, resolver) first');
     }
 
     return {
@@ -214,7 +214,7 @@ export class ActionBuilder {
       feeConfig: {
         paymentToken: this._paymentToken,
         indexerFee: this._indexerFee,
-        relayerFee: this._relayerFee,
+        resolverFee: this._resolverFee,
       },
       permit2Setup: this._permit2Setup,
       funding: {
@@ -234,7 +234,7 @@ export class ActionBuilder {
     this._isNoAction = false;
     this._paymentToken = '0x0000000000000000000000000000000000000000';
     this._indexerFee = 0n;
-    this._relayerFee = 0n;
+    this._resolverFee = 0n;
     this._permit2Setup = [];
     this._ethNeeded = 0n;
     this._tokensNeeded = [];
@@ -284,7 +284,7 @@ export class ActionBuilder {
     builder.withFees(
       options.feeConfig.paymentToken,
       options.feeConfig.indexerFee,
-      options.feeConfig.relayerFee
+      options.feeConfig.resolverFee
     );
 
     // Add Permit2 if specified
@@ -330,7 +330,7 @@ export class ActionBuilder {
       feeConfig: {
         paymentToken: usdcAddress,
         indexerFee: 0n,
-        relayerFee: 0n,
+        resolverFee: 0n,
       },
     };
   }
@@ -343,14 +343,14 @@ export class ActionBuilder {
     callData: Hex,
     paymentToken: Address,
     indexerFee: bigint,
-    relayerFee: bigint,
+    resolverFee: bigint,
     nonce: bigint,
     deadline: bigint,
     expectedAmount: bigint
   ): IAction {
     return new ActionBuilder()
       .addCall(target, callData)
-      .withFees(paymentToken, indexerFee, relayerFee)
+      .withFees(paymentToken, indexerFee, resolverFee)
       .build(nonce, deadline, expectedAmount);
   }
 }
@@ -410,14 +410,14 @@ export function validateAction(action: IAction, allowNoAction: boolean = true, p
   const protocolFee = (action.expectedAmount * protocolFeeBps) / 10000n;
   
   // Validate that expectedAmount covers all fees and costs
-  const totalFees = action.feeConfig.indexerFee + action.feeConfig.relayerFee + action.funding.maxReimbursement + protocolFee;
+  const totalFees = action.feeConfig.indexerFee + action.feeConfig.resolverFee + action.funding.maxReimbursement + protocolFee;
   if (action.expectedAmount < totalFees) {
     const shortfall = Number(totalFees - action.expectedAmount) / 1e6;
     throw new Error(
       `Insufficient amount for fees: expected ${Number(action.expectedAmount) / 1e6} USDC, ` +
       `but need ${Number(totalFees) / 1e6} USDC ` +
       `(indexer: ${Number(action.feeConfig.indexerFee) / 1e6}, ` +
-      `relayer: ${Number(action.feeConfig.relayerFee) / 1e6}, ` +
+      `resolver: ${Number(action.feeConfig.resolverFee) / 1e6}, ` +
       `protocol: ${Number(protocolFee) / 1e6}, ` +
       `reimbursement: ${Number(action.funding.maxReimbursement) / 1e6}). ` +
       `Shortfall: ${shortfall.toFixed(6)} USDC. ` +

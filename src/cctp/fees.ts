@@ -16,7 +16,7 @@ export const DEFAULT_FEES = {
   CCTP_FEE_BPS: 1n,        // 0.01% (1 basis point)
   PROTOCOL_FEE_BPS: 10n,   // 0.1% (10 basis points)
   INDEXER_FEE: 100000n,    // 0.1 USDC
-  RELAYER_FEE: 150000n,    // 0.15 USDC
+  RESOLVER_FEE: 150000n,   // 0.15 USDC
 } as const;
 
 export interface CCTPFeeConfig {
@@ -42,9 +42,9 @@ export interface PonsFeeBreakdown {
   protocolFee: bigint;
   /** Indexer fee (fixed) */
   indexerFee: bigint;
-  /** Relayer fee (fixed) */
-  relayerFee: bigint;
-  /** Reimbursement for relayer funding */
+  /** Resolver fee (fixed) */
+  resolverFee: bigint;
+  /** Reimbursement for resolver funding */
   reimbursement: bigint;
   /** Total fees to be paid from expectedAmount */
   totalFees: bigint;
@@ -177,7 +177,7 @@ export async function getExpectedAmount(
  * @returns Minimum burn amount
  * 
  * @example
- * // User needs 15 USDC after fees for indexer (0.1) + relayer (0.15) + action (14.75)
+ * // User needs 15 USDC after fees for indexer (0.1) + resolver (0.15) + action (14.75)
  * const burnAmount = await getMinimumBurnAmount(15000000n, 0, 26);
  * // Returns: 15001500n (15.0015 USDC to burn to get 15 USDC after 0.01% fee)
  */
@@ -213,27 +213,27 @@ export async function getMinimumBurnAmount(
  * Calculate minimum expectedAmount needed to cover all fees (including protocol fee)
  * 
  * The protocol fee is calculated as a percentage of expectedAmount, creating a circular dependency:
- *   expectedAmount = indexerFee + relayerFee + protocolFee + reimbursement + amountForAction
+ *   expectedAmount = indexerFee + resolverFee + protocolFee + reimbursement + amountForAction
  *   protocolFee = expectedAmount * protocolFeeBps / 10000
  * 
  * Solving for expectedAmount:
  *   expectedAmount = (otherFees + amountForAction) * 10000 / (10000 - protocolFeeBps)
  * 
  * @param indexerFee Fee for indexer
- * @param relayerFee Fee for relayer
- * @param reimbursement Reimbursement for relayer
+ * @param resolverFee Fee for resolver
+ * @param reimbursement Reimbursement for resolver
  * @param amountForAction USDC needed for the action itself (0 if action uses other tokens)
  * @param protocolFeeBps Protocol fee in basis points (e.g., 10 = 0.1%)
  * @returns Minimum expectedAmount needed
  */
 export function calculateMinExpectedAmount(
   indexerFee: bigint,
-  relayerFee: bigint,
+  resolverFee: bigint,
   reimbursement: bigint,
   amountForAction: bigint,
   protocolFeeBps: bigint
 ): bigint {
-  const baseCost = indexerFee + relayerFee + reimbursement + amountForAction;
+  const baseCost = indexerFee + resolverFee + reimbursement + amountForAction;
   
   if (protocolFeeBps === 0n) {
     return baseCost;
@@ -253,13 +253,13 @@ export function calculateMinExpectedAmount(
  * 1. CCTP fee (deducted during cross-chain transfer)
  * 2. Protocol fee (percentage of expectedAmount)
  * 3. Indexer fee (fixed)
- * 4. Relayer fee (fixed)
- * 5. Reimbursement (for ETH/tokens fronted by relayer)
+ * 4. Resolver fee (fixed)
+ * 5. Reimbursement (for ETH/tokens fronted by resolver)
  * 6. Amount needed for the action itself
  * 
  * @param indexerFee Fee for indexer
- * @param relayerFee Fee for relayer
- * @param reimbursement Reimbursement for relayer
+ * @param resolverFee Fee for resolver
+ * @param reimbursement Reimbursement for resolver
  * @param amountForAction USDC needed for the action (0 if using other tokens)
  * @param protocolFeeBps Protocol fee in basis points
  * @param sourceDomain Source CCTP domain
@@ -269,7 +269,7 @@ export function calculateMinExpectedAmount(
  */
 export async function calculateMinBurnAmount(
   indexerFee: bigint,
-  relayerFee: bigint,
+  resolverFee: bigint,
   reimbursement: bigint,
   amountForAction: bigint,
   protocolFeeBps: bigint,
@@ -279,7 +279,7 @@ export async function calculateMinBurnAmount(
 ): Promise<bigint> {
   // Step 1: Calculate minimum expectedAmount needed after all fees
   const minExpectedAmount = calculateMinExpectedAmount(
-    indexerFee, relayerFee, reimbursement, amountForAction, protocolFeeBps
+    indexerFee, resolverFee, reimbursement, amountForAction, protocolFeeBps
   );
   
   // Step 2: Calculate burn amount needed to achieve this expectedAmount (accounting for CCTP fee)
@@ -287,7 +287,7 @@ export async function calculateMinBurnAmount(
   
   console.log(`💰 [Fee Calculation]`);
   console.log(`   Indexer fee: ${Number(indexerFee) / 1e6} USDC`);
-  console.log(`   Relayer fee: ${Number(relayerFee) / 1e6} USDC`);
+  console.log(`   Resolver fee: ${Number(resolverFee) / 1e6} USDC`);
   console.log(`   Reimbursement: ${Number(reimbursement) / 1e6} USDC`);
   console.log(`   Amount for action: ${Number(amountForAction) / 1e6} USDC`);
   console.log(`   Protocol fee: ${Number(protocolFeeBps) / 100}%`);
@@ -302,8 +302,8 @@ export async function calculateMinBurnAmount(
  * 
  * @param burnAmount Amount to burn
  * @param indexerFee Fee for indexer
- * @param relayerFee Fee for relayer
- * @param reimbursement Reimbursement for relayer
+ * @param resolverFee Fee for resolver
+ * @param reimbursement Reimbursement for resolver
  * @param protocolFeeBps Protocol fee in basis points
  * @param sourceDomain Source CCTP domain
  * @param destDomain Destination CCTP domain
@@ -313,7 +313,7 @@ export async function calculateMinBurnAmount(
 export async function getFeeBreakdown(
   burnAmount: bigint,
   indexerFee: bigint,
-  relayerFee: bigint,
+  resolverFee: bigint,
   reimbursement: bigint,
   protocolFeeBps: bigint,
   sourceDomain: number,
@@ -325,7 +325,7 @@ export async function getFeeBreakdown(
   const expectedAmount = burnAmount - cctpFee;
   
   const protocolFee = (expectedAmount * protocolFeeBps) / 10000n;
-  const totalFees = protocolFee + indexerFee + relayerFee + reimbursement;
+  const totalFees = protocolFee + indexerFee + resolverFee + reimbursement;
   const amountForAction = expectedAmount > totalFees ? expectedAmount - totalFees : 0n;
   
   return {
@@ -334,7 +334,7 @@ export async function getFeeBreakdown(
     expectedAmount,
     protocolFee,
     indexerFee,
-    relayerFee,
+    resolverFee,
     reimbursement,
     totalFees,
     amountForAction,
@@ -346,8 +346,8 @@ export async function getFeeBreakdown(
  * 
  * @param burnAmount Amount user wants to burn
  * @param indexerFee Fee for indexer
- * @param relayerFee Fee for relayer/executor
- * @param reimbursement Reimbursement for relayer (for ETH/tokens fronted)
+ * @param resolverFee Fee for resolver/executor
+ * @param reimbursement Reimbursement for resolver (for ETH/tokens fronted)
  * @param protocolFeeBps Protocol fee in basis points (e.g., 10 = 0.1%)
  * @param sourceDomain Source CCTP domain
  * @param destDomain Destination CCTP domain
@@ -357,7 +357,7 @@ export async function getFeeBreakdown(
 export async function validateBurnAmount(
   burnAmount: bigint,
   indexerFee: bigint,
-  relayerFee: bigint,
+  resolverFee: bigint,
   reimbursement: bigint,
   protocolFeeBps: bigint,
   sourceDomain: number,
@@ -369,7 +369,7 @@ export async function validateBurnAmount(
   message: string;
 }> {
   const breakdown = await getFeeBreakdown(
-    burnAmount, indexerFee, relayerFee, reimbursement, 
+    burnAmount, indexerFee, resolverFee, reimbursement, 
     protocolFeeBps, sourceDomain, destDomain, circleApiUrl
   );
   
@@ -415,7 +415,7 @@ export async function validateBurnAmount(
  *   action: {
  *     feeConfig: {
  *       indexerFee: fees.indexerFee,
- *       relayerFee: fees.relayerFee,
+ *       resolverFee: fees.resolverFee,
  *     },
  *     funding: {
  *       maxReimbursement: fees.amountForAction,
@@ -428,7 +428,7 @@ export async function calculateFeesForBurn(
   burnAmount: bigint,
   options?: {
     indexerFee?: bigint;
-    relayerFee?: bigint;
+    resolverFee?: bigint;
     protocolFeeBps?: bigint;
     sourceDomain?: number;
     destDomain?: number;
@@ -440,12 +440,12 @@ export async function calculateFeesForBurn(
   expectedAmount: bigint;
   protocolFee: bigint;
   indexerFee: bigint;
-  relayerFee: bigint;
+  resolverFee: bigint;
   totalFees: bigint;
   amountForAction: bigint;
 }> {
   const indexerFee = options?.indexerFee ?? DEFAULT_FEES.INDEXER_FEE;
-  const relayerFee = options?.relayerFee ?? DEFAULT_FEES.RELAYER_FEE;
+  const resolverFee = options?.resolverFee ?? DEFAULT_FEES.RESOLVER_FEE;
   const protocolFeeBps = options?.protocolFeeBps ?? DEFAULT_FEES.PROTOCOL_FEE_BPS;
   const sourceDomain = options?.sourceDomain ?? 0;
   const destDomain = options?.destDomain ?? 26;
@@ -457,7 +457,7 @@ export async function calculateFeesForBurn(
   // Calculate amounts
   const expectedAmount = burnAmount - cctpFee;
   const protocolFee = (expectedAmount * protocolFeeBps) / 10000n;
-  const totalFees = protocolFee + indexerFee + relayerFee;
+  const totalFees = protocolFee + indexerFee + resolverFee;
   const amountForAction = expectedAmount > totalFees ? expectedAmount - totalFees : 0n;
   
   return {
@@ -466,7 +466,7 @@ export async function calculateFeesForBurn(
     expectedAmount,
     protocolFee,
     indexerFee,
-    relayerFee,
+    resolverFee,
     totalFees,
     amountForAction,
   };
@@ -483,7 +483,7 @@ export function calculateFeesSync(
   burnAmount: bigint,
   options?: {
     indexerFee?: bigint;
-    relayerFee?: bigint;
+    resolverFee?: bigint;
     protocolFeeBps?: bigint;
     cctpFeeBps?: bigint;
   }
@@ -493,12 +493,12 @@ export function calculateFeesSync(
   expectedAmount: bigint;
   protocolFee: bigint;
   indexerFee: bigint;
-  relayerFee: bigint;
+  resolverFee: bigint;
   totalFees: bigint;
   amountForAction: bigint;
 } {
   const indexerFee = options?.indexerFee ?? DEFAULT_FEES.INDEXER_FEE;
-  const relayerFee = options?.relayerFee ?? DEFAULT_FEES.RELAYER_FEE;
+  const resolverFee = options?.resolverFee ?? DEFAULT_FEES.RESOLVER_FEE;
   const protocolFeeBps = options?.protocolFeeBps ?? DEFAULT_FEES.PROTOCOL_FEE_BPS;
   const cctpFeeBps = options?.cctpFeeBps ?? DEFAULT_FEES.CCTP_FEE_BPS;
   
@@ -508,7 +508,7 @@ export function calculateFeesSync(
   // Calculate amounts
   const expectedAmount = burnAmount - cctpFee;
   const protocolFee = (expectedAmount * protocolFeeBps) / 10000n;
-  const totalFees = protocolFee + indexerFee + relayerFee;
+  const totalFees = protocolFee + indexerFee + resolverFee;
   const amountForAction = expectedAmount > totalFees ? expectedAmount - totalFees : 0n;
   
   return {
@@ -517,7 +517,7 @@ export function calculateFeesSync(
     expectedAmount,
     protocolFee,
     indexerFee,
-    relayerFee,
+    resolverFee,
     totalFees,
     amountForAction,
   };
@@ -548,7 +548,7 @@ export function calculateFeesSync(
  * const transferParams = {
  *   amount: fees.burnAmount,
  *   action: {
- *     feeConfig: { indexerFee: fees.indexerFee, relayerFee: fees.relayerFee },
+ *     feeConfig: { indexerFee: fees.indexerFee, resolverFee: fees.resolverFee },
  *     funding: { maxReimbursement: actionAmount },
  *   },
  * };
@@ -557,7 +557,7 @@ export function calculateBurnForAction(
   actionAmount: bigint,
   options?: {
     indexerFee?: bigint;
-    relayerFee?: bigint;
+    resolverFee?: bigint;
     protocolFeeBps?: bigint;
     cctpFeeBps?: bigint;
   }
@@ -567,23 +567,23 @@ export function calculateBurnForAction(
   expectedAmount: bigint;
   protocolFee: bigint;
   indexerFee: bigint;
-  relayerFee: bigint;
+  resolverFee: bigint;
   totalFees: bigint;
   amountForAction: bigint;
 } {
   const indexerFee = options?.indexerFee ?? DEFAULT_FEES.INDEXER_FEE;
-  const relayerFee = options?.relayerFee ?? DEFAULT_FEES.RELAYER_FEE;
+  const resolverFee = options?.resolverFee ?? DEFAULT_FEES.RESOLVER_FEE;
   const protocolFeeBps = options?.protocolFeeBps ?? DEFAULT_FEES.PROTOCOL_FEE_BPS;
   const cctpFeeBps = options?.cctpFeeBps ?? DEFAULT_FEES.CCTP_FEE_BPS;
   
   // Work backwards from actionAmount:
-  // actionAmount = expectedAmount - protocolFee - indexerFee - relayerFee
-  // actionAmount = expectedAmount - (expectedAmount * protocolFeeBps / 10000) - indexerFee - relayerFee
-  // actionAmount = expectedAmount * (1 - protocolFeeBps/10000) - indexerFee - relayerFee
-  // actionAmount + indexerFee + relayerFee = expectedAmount * (10000 - protocolFeeBps) / 10000
-  // expectedAmount = (actionAmount + indexerFee + relayerFee) * 10000 / (10000 - protocolFeeBps)
+  // actionAmount = expectedAmount - protocolFee - indexerFee - resolverFee
+  // actionAmount = expectedAmount - (expectedAmount * protocolFeeBps / 10000) - indexerFee - resolverFee
+  // actionAmount = expectedAmount * (1 - protocolFeeBps/10000) - indexerFee - resolverFee
+  // actionAmount + indexerFee + resolverFee = expectedAmount * (10000 - protocolFeeBps) / 10000
+  // expectedAmount = (actionAmount + indexerFee + resolverFee) * 10000 / (10000 - protocolFeeBps)
   
-  const baseNeeded = actionAmount + indexerFee + relayerFee;
+  const baseNeeded = actionAmount + indexerFee + resolverFee;
   const expectedAmount = (baseNeeded * 10000n) / (10000n - protocolFeeBps);
   
   // Now calculate burn amount from expectedAmount:
@@ -596,7 +596,7 @@ export function calculateBurnForAction(
   // Recalculate fees for verification
   const cctpFee = burnAmount - expectedAmount;
   const protocolFee = (expectedAmount * protocolFeeBps) / 10000n;
-  const totalFees = protocolFee + indexerFee + relayerFee;
+  const totalFees = protocolFee + indexerFee + resolverFee;
   
   return {
     burnAmount,
@@ -604,7 +604,7 @@ export function calculateBurnForAction(
     expectedAmount,
     protocolFee,
     indexerFee,
-    relayerFee,
+    resolverFee,
     totalFees,
     amountForAction: actionAmount, // This is what we targeted
   };
@@ -624,7 +624,7 @@ export function calculateBurnForAction(
  * const fees = calculateFeesForActionType('purchase', { actionCost: 10_000000n });
  * 
  * @example
- * // Swapping for ETH (relayer provides ETH, gets USDC back)
+ * // Swapping for ETH (resolver provides ETH, gets USDC back)
  * const fees = calculateFeesForActionType('swap', { reimbursement: 14_000000n });
  * 
  * @example
@@ -636,9 +636,9 @@ export function calculateFeesForActionType(
   params: {
     burnAmount?: bigint;      // For 'bridge' and 'swap' - user specifies burn
     actionCost?: bigint;      // For 'purchase' and 'deposit' - action cost known
-    reimbursement?: bigint;   // For 'swap' - what relayer gets back
+    reimbursement?: bigint;   // For 'swap' - what resolver gets back
     indexerFee?: bigint;
-    relayerFee?: bigint;
+    resolverFee?: bigint;
     protocolFeeBps?: bigint;
     cctpFeeBps?: bigint;
   }
@@ -648,14 +648,14 @@ export function calculateFeesForActionType(
   expectedAmount: bigint;
   protocolFee: bigint;
   indexerFee: bigint;
-  relayerFee: bigint;
+  resolverFee: bigint;
   totalFees: bigint;
   amountForAction: bigint;
   actionType: string;
 } {
   const feeOptions = {
     indexerFee: params.indexerFee,
-    relayerFee: params.relayerFee,
+    resolverFee: params.resolverFee,
     protocolFeeBps: params.protocolFeeBps,
     cctpFeeBps: params.cctpFeeBps,
   };
@@ -712,7 +712,7 @@ export function validateActionFeasibility(
   actionCost: bigint,
   options?: {
     indexerFee?: bigint;
-    relayerFee?: bigint;
+    resolverFee?: bigint;
     protocolFeeBps?: bigint;
     cctpFeeBps?: bigint;
   }

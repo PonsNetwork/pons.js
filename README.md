@@ -1,9 +1,9 @@
-# @pons-network/sdk
+# @pons-network/pons.js
 
 **Pons Network SDK** - Decentralized cross-chain execution layer.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
-[![npm version](https://img.shields.io/npm/v/@pons-network/sdk.svg)](https://www.npmjs.com/package/@pons-network/sdk)
+[![npm version](https://img.shields.io/npm/v/@pons-network/pons.js.svg)](https://www.npmjs.com/package/@pons-network/pons.js)
 
 ## Overview
 
@@ -45,19 +45,19 @@ Pons Network is **permissionless** - anyone can participate and earn:
 │                    DECENTRALIZED OPERATORS                              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  🔍 INDEXERS                          ⚡ RELAYERS                        │
+│  🔍 INDEXERS                          ⚡ RESOLVERS                       │
 │  • Monitor cross-chain messages       • Execute user actions            │
 │  • Index messages on destination      • Provide ETH/tokens if needed    │
-│  • Earn indexer fees                  • Earn relayer fees               │
+│  • Earn indexer fees                  • Earn resolver fees              │
 │                                                                         │
-│  Anyone can run an indexer or relayer and earn income!                 │
+│  Anyone can run an indexer or resolver and earn income!                │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Why Decentralization Matters
 
-- **Permissionless** - Anyone can publish messages, run indexers, or become a relayer
+- **Permissionless** - Anyone can publish messages, run indexers, or become a resolver
 - **Censorship Resistant** - No single entity controls message relay or execution
 - **Competitive Fees** - Multiple operators compete to provide best service
 - **Resilient** - System continues operating even if some operators go offline
@@ -65,7 +65,7 @@ Pons Network is **permissionless** - anyone can participate and earn:
 ## Installation
 
 ```bash
-npm install @pons-network/sdk viem
+npm install @pons-network/pons.js viem
 ```
 
 ## Quick Start
@@ -75,7 +75,7 @@ import {
   PonsClient, 
   Chain, 
   calculateFeesSync 
-} from '@pons-network/sdk';
+} from '@pons-network/pons.js';
 import { parseUnits } from 'viem';
 
 // Initialize Pons client
@@ -90,7 +90,7 @@ const pons = await PonsClient.create({
 const fees = calculateFeesSync(parseUnits('15', 6));
 
 // Execute cross-chain action
-const result = await pons.executeCCTPTransfer({
+const result = await pons.execute({
   amount: fees.burnAmount,
   action: {
     target: CONTRACT_ADDRESS,
@@ -98,7 +98,7 @@ const result = await pons.executeCCTPTransfer({
     feeConfig: {
       paymentToken: USDC_ADDRESS,
       indexerFee: fees.indexerFee,
-      relayerFee: fees.relayerFee,
+      resolverFee: fees.resolverFee,
     },
     funding: {
       maxReimbursement: fees.amountForAction,
@@ -160,7 +160,7 @@ User sends: 15.00 USDC
             │
             ├── Protocol Fee (~0.1%)  → Pons treasury
             ├── Indexer Fee (dynamic) → Indexer operator
-            ├── Relayer Fee (dynamic) → Relayer operator
+            ├── Resolver Fee (dynamic) → Resolver operator
             │
             └── Amount for Action     → Available for your action
 ```
@@ -168,7 +168,7 @@ User sends: 15.00 USDC
 ### Fee Calculation
 
 ```typescript
-import { calculateFeesSync, calculateBurnForAction } from '@pons-network/sdk';
+import { calculateFeesSync, calculateBurnForAction } from '@pons-network/pons.js';
 
 // Calculate with default fees
 const fees = calculateFeesSync(parseUnits('15', 6));
@@ -176,13 +176,13 @@ const fees = calculateFeesSync(parseUnits('15', 6));
 // Custom fees for faster execution
 const fastFees = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.2', 6),  // 2x default → faster indexing
-  relayerFee: parseUnits('0.3', 6),  // 2x default → faster execution
+  resolverFee: parseUnits('0.3', 6),  // 2x default → faster execution
 });
 
 // Economy fees for cost savings
 const economyFees = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.05', 6), // 0.5x default → slower but cheaper
-  relayerFee: parseUnits('0.08', 6), // 0.5x default → slower but cheaper
+  resolverFee: parseUnits('0.08', 6), // 0.5x default → slower but cheaper
 });
 ```
 
@@ -190,7 +190,7 @@ const economyFees = calculateFeesSync(parseUnits('15', 6), {
 
 ## Becoming an Operator
 
-Pons Network is permissionless - anyone can become an indexer or relayer and earn income!
+Pons Network is permissionless - anyone can become an indexer or resolver and earn income!
 
 ### Indexers
 
@@ -214,25 +214,25 @@ docker run -d pons/resolver:latest \
   --chains sepolia,arc-testnet
 ```
 
-### Relayers
+### Resolvers
 
-Relayers execute user actions after messages are indexed.
+Resolvers execute user actions after messages are indexed.
 
-**What relayers do:**
+**What resolvers do:**
 1. Monitor for indexed messages
 2. Validate action profitability
 3. Execute user's signed action
 4. Optionally provide ETH/tokens upfront (reimbursed in USDC)
-5. Earn relayer fee for each execution
+5. Earn resolver fee for each execution
 
 **Requirements:**
 - RPC access to destination chain
 - ETH for gas
 - Optional: USDC/ETH/tokens for funding actions
-- Run the Pons resolver in relayer mode
+- Run the Pons resolver in resolver mode
 
 ```bash
-# Run as relayer
+# Run as resolver
 docker run -d pons/resolver:latest \
   --mode executor \
   --chains arc-testnet
@@ -254,7 +254,7 @@ Operators compete for transactions by offering competitive fees:
 Main client for cross-chain operations.
 
 ```typescript
-import { PonsClient, Chain } from '@pons-network/sdk';
+import { PonsClient, Chain } from '@pons-network/pons.js';
 
 // Initialize
 const pons = await PonsClient.create({
@@ -265,7 +265,7 @@ const pons = await PonsClient.create({
 });
 
 // Execute cross-chain transfer
-const result = await pons.executeCCTPTransfer(params, walletClient);
+const result = await pons.execute(params, walletClient);
 
 // Track transfer status
 const tracker = pons.trackTransfer(txHash, smartAccount, nonce);
@@ -282,12 +282,12 @@ await pons.stop();
 Build complex cross-chain actions.
 
 ```typescript
-import { ActionBuilder } from '@pons-network/sdk';
+import { ActionBuilder } from '@pons-network/pons.js';
 
 // Simple contract call
 const action = new ActionBuilder()
   .addCall(contractAddress, calldata)
-  .withFees(USDC_ADDRESS, indexerFee, relayerFee)
+  .withFees(USDC_ADDRESS, indexerFee, resolverFee)
   .build(nonce, deadline, expectedAmount);
 
 // Batch actions (approve + swap + stake)
@@ -295,7 +295,7 @@ const batchAction = new ActionBuilder()
   .addCall(USDC_ADDRESS, approveCalldata)
   .addCall(UNISWAP_ROUTER, swapCalldata)
   .addCall(STAKING_CONTRACT, stakeCalldata)
-  .withFees(USDC_ADDRESS, indexerFee, relayerFee)
+  .withFees(USDC_ADDRESS, indexerFee, resolverFee)
   .needsEth(ethAmount, reimbursement)
   .build(nonce, deadline, expectedAmount);
 ```
@@ -305,7 +305,7 @@ const batchAction = new ActionBuilder()
 Track cross-chain transfer status.
 
 ```typescript
-import { TransferStatus } from '@pons-network/sdk';
+import { TransferStatus } from '@pons-network/pons.js';
 
 const tracker = pons.trackTransfer(txHash, smartAccount, nonce);
 
@@ -318,7 +318,7 @@ tracker.on('statusChange', (status) => {
       console.log('Message indexed on destination!');
       break;
     case TransferStatus.EXECUTED:
-      console.log('Action executed by relayer!');
+      console.log('Action executed by resolver!');
       break;
   }
 });
@@ -340,7 +340,7 @@ tracker.on('statusChange', (status) => {
 ### Built-in Chains
 
 ```typescript
-import { Chain, arcTestnet, sepolia } from '@pons-network/sdk';
+import { Chain, arcTestnet, sepolia } from '@pons-network/pons.js';
 
 // Use chain constants
 const pons = await PonsClient.create({
@@ -370,7 +370,7 @@ Chain.ETHEREUM     // Ethereum mainnet (coming soon)
 
 | Traditional Bridging | Pons Network |
 |---------------------|--------------|
-| Centralized relayers | Decentralized operators |
+| Centralized resolvers | Decentralized operators |
 | Fixed fees | Dynamic fees (like ETH gas) |
 | Switch networks manually | Stay on your chain |
 | Multiple transactions | One signature |

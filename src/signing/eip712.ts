@@ -9,7 +9,7 @@ import type { IAction, WalletSigner, FundingConfig, Permit2Setup } from '../type
  * Single, unified signing function that supports all action features:
  * - Batch actions (1 to N contract calls)
  * - Permit2 token approvals
- * - Relayer funding (ETH and tokens)
+ * - Resolver funding (ETH and tokens)
  * - Customizable fees
  */
 
@@ -56,7 +56,7 @@ const ACTION_TYPES = {
   FeeConfig: [
     { name: 'paymentToken', type: 'address' },
     { name: 'indexerFee', type: 'uint256' },
-    { name: 'relayerFee', type: 'uint256' },
+    { name: 'resolverFee', type: 'uint256' },
   ],
   FundingConfig: [
     { name: 'ethNeeded', type: 'uint256' },
@@ -82,7 +82,7 @@ const ACTION_TYPES = {
  * - Single action (arrays of length 1)
  * - Batch actions (arrays of length N)
  * - Actions with Permit2
- * - Actions requiring relayer funding
+ * - Actions requiring resolver funding
  * - Custom fee configurations
  * 
  * @param action The complete action to sign
@@ -111,7 +111,7 @@ export async function signAction(
     feeConfig: {
       paymentToken: action.feeConfig.paymentToken,
       indexerFee: action.feeConfig.indexerFee,
-      relayerFee: action.feeConfig.relayerFee,
+      resolverFee: action.feeConfig.resolverFee,
     },
     // Permit2Setup array
     permit2Setup: action.permit2Setup.map(p => ({

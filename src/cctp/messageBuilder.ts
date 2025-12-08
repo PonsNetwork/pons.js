@@ -19,7 +19,7 @@ import type { IAction, HookData, Permit2Setup } from '../types.js';
  * - Batch actions (targets[], callDatas[], values[])
  * - Fee configuration
  * - Permit2 setup
- * - Relayer funding
+ * - Resolver funding
  */
 export function encodeHookData(action: IAction, signature: Hex): Hex {
   return encodeAbiParameters(
@@ -39,7 +39,7 @@ export function encodeHookData(action: IAction, signature: Hex): Hex {
       // Fees
       { type: 'address', name: 'paymentToken' },
       { type: 'uint256', name: 'indexerFee' },
-      { type: 'uint256', name: 'relayerFee' },
+      { type: 'uint256', name: 'resolverFee' },
       
       // Permit2 setup (as tuple array)
       { type: 'tuple[]', name: 'permit2Setup', components: [
@@ -69,7 +69,7 @@ export function encodeHookData(action: IAction, signature: Hex): Hex {
       action.expectedAmount,
       action.feeConfig.paymentToken,
       action.feeConfig.indexerFee,
-      action.feeConfig.relayerFee,
+      action.feeConfig.resolverFee,
       action.permit2Setup.map(p => ({ token: p.token, spender: p.spender, amount: p.amount })),
       action.funding.ethNeeded,
       action.funding.tokensNeeded,
@@ -98,7 +98,7 @@ export function decodeHookData(hookData: Hex): HookData {
       { type: 'uint256', name: 'expectedAmount' },
       { type: 'address', name: 'paymentToken' },
       { type: 'uint256', name: 'indexerFee' },
-      { type: 'uint256', name: 'relayerFee' },
+      { type: 'uint256', name: 'resolverFee' },
       { type: 'tuple[]', name: 'permit2Setup', components: [
         { type: 'address', name: 'token' },
         { type: 'address', name: 'spender' },
@@ -133,7 +133,7 @@ export function decodeHookData(hookData: Hex): HookData {
     feeConfig: {
       paymentToken: decoded[6] as Address,
       indexerFee: decoded[7] as bigint,
-      relayerFee: decoded[8] as bigint,
+      resolverFee: decoded[8] as bigint,
     },
     permit2Setup,
     funding: {
@@ -160,7 +160,7 @@ export function decodeHookDataV1(hookData: Hex): HookData {
       { type: 'uint256', name: 'expectedAmount' },
       { type: 'address', name: 'paymentToken' },
       { type: 'uint256', name: 'indexerFee' },
-      { type: 'uint256', name: 'relayerFee' },
+      { type: 'uint256', name: 'resolverFee' },
       { type: 'tuple[]', name: 'permit2Setup', components: [
         { type: 'address', name: 'token' },
         { type: 'address', name: 'spender' },
@@ -195,7 +195,7 @@ export function decodeHookDataV1(hookData: Hex): HookData {
     feeConfig: {
       paymentToken: decoded[6] as Address,
       indexerFee: decoded[7] as bigint,
-      relayerFee: decoded[8] as bigint,
+      resolverFee: decoded[8] as bigint,
     },
     permit2Setup,
     funding: {

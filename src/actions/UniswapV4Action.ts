@@ -26,14 +26,14 @@ export interface UniswapV4SwapParams {
  * 
  * @example
  * const actionOptions = buildUniswapV4SwapOptions(params, routerAddress, usdcAddress);
- * const result = await pons.executeCCTPTransfer({ amount, action: actionOptions }, signer);
+ * const result = await pons.execute({ amount, action: actionOptions }, signer);
  */
 export function buildUniswapV4SwapOptions(
   params: UniswapV4SwapParams,
   swapRouterAddress: Address,
   paymentToken: Address,
   indexerFee: bigint = 100000n,
-  relayerFee: bigint = 200000n
+  resolverFee: bigint = 200000n
 ): ActionOptions {
   // Validate swap parameters
   if (params.amountSpecified <= 0n) {
@@ -93,7 +93,7 @@ export function buildUniswapV4SwapOptions(
     feeConfig: {
       paymentToken,
       indexerFee,
-      relayerFee,
+      resolverFee,
     },
   };
 }

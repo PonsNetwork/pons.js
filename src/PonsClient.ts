@@ -37,7 +37,7 @@ import { ActionBuilder, validateAction } from './actions/ActionBuilder.js';
  * await pons.initialize();
  * 
  * // Execute cross-chain transfer
- * const result = await pons.executeCCTPTransfer({
+ * const result = await pons.execute({
  *   amount: parseUnits('10', 6),  // 10 USDC
  *   action: { ... },
  * }, walletClient);
@@ -312,16 +312,16 @@ export class PonsClient {
   }
 
   /**
-   * Execute a CCTP transfer with action
+   * Execute a cross-chain transfer with action
    * 
    * @param params Transfer parameters including action options
    * @param signer Wallet signer (Privy, wagmi, viem, or any compatible wallet)
    * 
-   * Note: No network switching required! Users stay connected to the source chain (Arc).
+   * Note: No network switching required! Users stay connected to the source chain.
    * The EIP-712 signature includes the destination chainId in its domain separator,
    * so the signature will be valid on the destination chain without switching networks.
    */
-  async executeCCTPTransfer(
+  async execute(
     params: CCTPTransferParams,
     signer: any
   ): Promise<TransferResult> {
@@ -342,11 +342,11 @@ export class PonsClient {
     // Get protocol fee (default to 10 bps = 0.1% if not available)
     const protocolFeeBps = params.protocolFeeBps ?? 10n;
 
-    // Validate burn amount covers all fees (CCTP + Protocol + Indexer + Relayer + Reimbursement)
+    // Validate burn amount covers all fees (CCTP + Protocol + Indexer + Resolver + Reimbursement)
     const validation = await validateBurnAmount(
       params.amount,
       params.action.feeConfig.indexerFee,
-      params.action.feeConfig.relayerFee,
+      params.action.feeConfig.resolverFee,
       params.action.funding?.maxReimbursement ?? 0n,
       protocolFeeBps,
       this.resolvedConfig.sourceChain.domain,
@@ -357,7 +357,7 @@ export class PonsClient {
       // Calculate how much user should burn to make this work
       const minBurn = await calculateMinBurnAmount(
         params.action.feeConfig.indexerFee,
-        params.action.feeConfig.relayerFee,
+        params.action.feeConfig.resolverFee,
         params.action.funding?.maxReimbursement ?? 0n,
         0n, // Amount for action (if user needs USDC for the action itself)
         protocolFeeBps,
@@ -378,7 +378,7 @@ export class PonsClient {
     console.log(`   Expected amount: ${Number(validation.breakdown.expectedAmount) / 1e6} USDC`);
     console.log(`   Protocol fee (${Number(protocolFeeBps) / 100}%): ${Number(validation.breakdown.protocolFee) / 1e6} USDC`);
     console.log(`   Indexer fee: ${Number(validation.breakdown.indexerFee) / 1e6} USDC`);
-    console.log(`   Relayer fee: ${Number(validation.breakdown.relayerFee) / 1e6} USDC`);
+    console.log(`   Resolver fee: ${Number(validation.breakdown.resolverFee) / 1e6} USDC`);
     console.log(`   Reimbursement: ${Number(validation.breakdown.reimbursement) / 1e6} USDC`);
     console.log(`   Total fees: ${Number(validation.breakdown.totalFees) / 1e6} USDC`);
     console.log(`   Amount for action: ${Number(validation.breakdown.amountForAction) / 1e6} USDC`);
@@ -407,7 +407,7 @@ export class PonsClient {
       feeConfig: {
         paymentToken: action.feeConfig.paymentToken,
         indexerFee: action.feeConfig.indexerFee.toString(),
-        relayerFee: action.feeConfig.relayerFee.toString(),
+        resolverFee: action.feeConfig.resolverFee.toString(),
       },
       permit2Setup: action.permit2Setup.length,
       funding: {
@@ -556,7 +556,7 @@ export class PonsClient {
         hookData,
         salt
       );
-      console.log('✅ Transfer announced to relayers/indexers');
+      console.log('✅ Transfer announced to resolvers/indexers');
     }
 
     return {
@@ -753,7 +753,7 @@ export class PonsClient {
         feeConfig: {
           paymentToken: action.feeConfig.paymentToken,
           indexerFee: action.feeConfig.indexerFee.toString(),
-          relayerFee: action.feeConfig.relayerFee.toString(),
+          resolverFee: action.feeConfig.resolverFee.toString(),
         },
         fundingConfig: {
           ethNeeded: action.funding.ethNeeded.toString(),
@@ -782,7 +782,7 @@ export class PonsClient {
       console.log(`   Source TX: ${txHash}`);
       console.log(`   Smart Account: ${smartAccountAddress}`);
       console.log(`   Amount: ${(Number(action.expectedAmount) / 1e6).toFixed(6)} USDC`);
-      console.log(`   Fees: ${(Number(action.feeConfig.indexerFee) / 1e6).toFixed(6)} + ${(Number(action.feeConfig.relayerFee) / 1e6).toFixed(6)} USDC`);
+      console.log(`   Fees: ${(Number(action.feeConfig.indexerFee) / 1e6).toFixed(6)} + ${(Number(action.feeConfig.resolverFee) / 1e6).toFixed(6)} USDC`);
       console.log(`   🔒 Includes trustless validation proofs`);
 
       if (this.useGateway && this.gatewayClient) {

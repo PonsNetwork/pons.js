@@ -1,6 +1,6 @@
 # Pons Network SDK - API Reference
 
-Complete API documentation for `@pons-network/sdk`.
+Complete API documentation for `@pons-network/pons.js`.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ import {
   calculateFeesSync,
   ActionBuilder,
   TransferStatus 
-} from '@pons-network/sdk';
+} from '@pons-network/pons.js';
 ```
 
 ### Architecture
@@ -53,7 +53,7 @@ Calculate fees with **dynamic** fee rates.
 |------|------|-------------|
 | `sendAmount` | `bigint` | Amount of USDC to send (6 decimals) |
 | `options.indexerFee` | `bigint?` | Indexer fee - **DYNAMIC** (default: 100000n) |
-| `options.relayerFee` | `bigint?` | Relayer fee - **DYNAMIC** (default: 150000n) |
+| `options.resolverFee` | `bigint?` | Resolver fee - **DYNAMIC** (default: 150000n) |
 | `options.protocolFeeBps` | `bigint?` | Protocol fee in basis points (default: 10n) |
 
 **Returns:**
@@ -64,7 +64,7 @@ Calculate fees with **dynamic** fee rates.
   expectedAmount: bigint;  // Amount arriving at Smart Account
   protocolFee: bigint;     // Protocol fee
   indexerFee: bigint;      // Indexer operator fee (dynamic)
-  relayerFee: bigint;      // Relayer operator fee (dynamic)
+  resolverFee: bigint;      // Resolver operator fee (dynamic)
   totalFees: bigint;       // Sum of all fees after network fee
   amountForAction: bigint; // Available for action
 }
@@ -72,7 +72,7 @@ Calculate fees with **dynamic** fee rates.
 
 **Example:**
 ```typescript
-import { calculateFeesSync } from '@pons-network/sdk';
+import { calculateFeesSync } from '@pons-network/pons.js';
 import { parseUnits } from 'viem';
 
 // Standard speed
@@ -81,13 +81,13 @@ const standard = calculateFeesSync(parseUnits('15', 6));
 // Fast speed (higher fees = faster)
 const fast = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.2', 6),
-  relayerFee: parseUnits('0.3', 6),
+  resolverFee: parseUnits('0.3', 6),
 });
 
 // Economy (lower fees = slower but cheaper)
 const economy = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.05', 6),
-  relayerFee: parseUnits('0.08', 6),
+  resolverFee: parseUnits('0.08', 6),
 });
 ```
 
@@ -113,7 +113,7 @@ const fees = calculateBurnForAction(parseUnits('10', 6));
 // With fast execution
 const fastFees = calculateBurnForAction(parseUnits('10', 6), {
   indexerFee: parseUnits('0.2', 6),
-  relayerFee: parseUnits('0.3', 6),
+  resolverFee: parseUnits('0.3', 6),
 });
 ```
 
@@ -148,7 +148,7 @@ const DEFAULT_FEES = {
   CCTP_FEE_BPS: 1n,        // ~0.01% network fee
   PROTOCOL_FEE_BPS: 10n,   // ~0.1% protocol fee
   INDEXER_FEE: 100000n,    // 0.1 USDC (standard rate)
-  RELAYER_FEE: 150000n,    // 0.15 USDC (standard rate)
+  RESOLVER_FEE: 150000n,   // 0.15 USDC (standard rate)
 };
 ```
 
@@ -193,7 +193,7 @@ const pons = await PonsClient.create({
 
 ### Instance Methods
 
-#### `executeCCTPTransfer(params, signer)`
+#### `execute(params, signer)`
 
 Execute a cross-chain transfer with action.
 
@@ -277,7 +277,7 @@ builder.addCall(
 );
 ```
 
-#### `withFees(paymentToken, indexerFee, relayerFee)`
+#### `withFees(paymentToken, indexerFee, resolverFee)`
 
 Set fee configuration (dynamic fees).
 
@@ -291,18 +291,18 @@ builder.withFees(USDC_ADDRESS, parseUnits('0.2', 6), parseUnits('0.3', 6));
 
 #### `needsEth(amount, reimbursement)`
 
-Request ETH from relayer.
+Request ETH from resolver.
 
 ```typescript
 builder.needsEth(
   parseEther('0.1'),    // ETH needed for action
-  parseUnits('250', 6)  // USDC reimbursement to relayer
+  parseUnits('250', 6)  // USDC reimbursement to resolver
 );
 ```
 
 #### `needsTokens(tokens, amounts, reimbursement)`
 
-Request tokens from relayer.
+Request tokens from resolver.
 
 ```typescript
 builder.needsTokens(
@@ -387,7 +387,7 @@ await tracker.waitForStatus(TransferStatus.EXECUTED, {
 ### Built-in Chains
 
 ```typescript
-import { arcTestnet, sepolia, Chain } from '@pons-network/sdk';
+import { arcTestnet, sepolia, Chain } from '@pons-network/pons.js';
 
 const pons = await PonsClient.create({
   from: Chain.SEPOLIA,
@@ -436,7 +436,7 @@ interface ActionOptions {
 interface FeeConfig {
   paymentToken: Address;
   indexerFee: bigint;   // Dynamic - set by user
-  relayerFee: bigint;   // Dynamic - set by user
+  resolverFee: bigint;  // Dynamic - set by user
 }
 
 // Funding requirements
@@ -464,7 +464,7 @@ enum TransferStatus {
   ATTESTED = 'attested',     // Attestation verified
   INDEXING = 'indexing',     // Indexer processing
   INDEXED = 'indexed',       // Message indexed on destination
-  EXECUTING = 'executing',   // Relayer processing
+  EXECUTING = 'executing',   // Resolver processing
   EXECUTED = 'executed',     // Action complete
   FAILED = 'failed',         // Action failed
 }
@@ -491,7 +491,7 @@ const DEFAULT_FEES = {
   CCTP_FEE_BPS: 1n,        // Network fee
   PROTOCOL_FEE_BPS: 10n,   // Protocol fee
   INDEXER_FEE: 100000n,    // 0.1 USDC (standard)
-  RELAYER_FEE: 150000n,    // 0.15 USDC (standard)
+  RESOLVER_FEE: 150000n,   // 0.15 USDC (standard)
 };
 ```
 
@@ -501,15 +501,15 @@ const DEFAULT_FEES = {
 const FEE_LEVELS = {
   fast: {
     indexerFee: parseUnits('0.2', 6),
-    relayerFee: parseUnits('0.3', 6),
+    resolverFee: parseUnits('0.3', 6),
   },
   standard: {
     indexerFee: parseUnits('0.1', 6),
-    relayerFee: parseUnits('0.15', 6),
+    resolverFee: parseUnits('0.15', 6),
   },
   economy: {
     indexerFee: parseUnits('0.05', 6),
-    relayerFee: parseUnits('0.08', 6),
+    resolverFee: parseUnits('0.08', 6),
   },
 };
 ```
@@ -525,10 +525,10 @@ Pons Network is **permissionless** - anyone can earn fees by running operators:
 - Index on destination chain
 - Earn indexer fee (dynamic)
 
-### Relayers
+### Resolvers
 - Execute user actions
 - Provide ETH/tokens if needed
-- Earn relayer fee (dynamic)
+- Earn resolver fee (dynamic)
 
 ### Why Dynamic Fees?
 
@@ -541,7 +541,7 @@ Pons Network is **permissionless** - anyone can earn fees by running operators:
 # Run indexer
 docker run pons/resolver:latest --mode indexer
 
-# Run relayer
+# Run resolver
 docker run pons/resolver:latest --mode executor
 
 # Run both

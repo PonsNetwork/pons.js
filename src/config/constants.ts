@@ -133,7 +133,7 @@ export const WAKU_TOPICS = {
  * Default values
  */
 export const DEFAULTS = {
-  RELAYER_FEE_BPS: 100n, // 1%
+  RESOLVER_FEE_BPS: 100n, // 1%
   PROTOCOL_FEE_BPS: 1n, // 0.01%
   DEADLINE_OFFSET: 86400n, // 24 hours
   MAX_FEE: 5000n, // 0.005 USDC (in 6 decimals)
@@ -155,7 +155,7 @@ export const SMART_ACCOUNT_ABI = [
       { name: 'func', type: 'bytes' },
       { name: 'deadline', type: 'uint256' },
       { name: 'nonce', type: 'uint256' },
-      { name: 'relayerFeeBps', type: 'uint256' },
+      { name: 'resolverFeeBps', type: 'uint256' },
       { name: 'expectedAmount', type: 'uint256' },
       { name: 'gasCostUSDC', type: 'uint256' },
       { name: 'signature', type: 'bytes' },
@@ -164,7 +164,7 @@ export const SMART_ACCOUNT_ABI = [
   },
   {
     type: 'function',
-    name: 'executeWithRelayerFunding',
+    name: 'executeWithResolverFunding',
     stateMutability: 'payable',
     inputs: [{ name: 'params', type: 'bytes' }],
     outputs: [],

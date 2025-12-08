@@ -18,13 +18,13 @@ Complete guide for integrating **Pons Network** into your DApps. Build seamless 
 ## Installation & Setup
 
 ```bash
-npm install @pons-network/sdk viem
+npm install @pons-network/pons.js viem
 ```
 
 ### Initialize Client
 
 ```typescript
-import { PonsClient, Chain } from '@pons-network/sdk';
+import { PonsClient, Chain } from '@pons-network/pons.js';
 
 // Initialize Pons client
 const pons = await PonsClient.create({
@@ -68,7 +68,7 @@ Pons Network is a **decentralized cross-chain execution layer**.
 STEP 1-2: User signs action + sends message on source chain
 STEP 3-4: Pons Network relays and verifies the message
 STEP 5:   Indexer indexes the message on destination chain
-STEP 6:   Relayer executes the user's signed action
+STEP 6:   Resolver executes the user's signed action
 ```
 
 ### Decentralized Operators
@@ -77,7 +77,7 @@ STEP 6:   Relayer executes the user's signed action
 |-----------|-----------------|
 | **Message Publishing** | Anyone can publish transfer messages |
 | **Indexers** | Permissionless - anyone can run an indexer |
-| **Relayers** | Permissionless - anyone can run a relayer |
+| **Resolvers** | Permissionless - anyone can run a resolver |
 | **Smart Accounts** | Non-custodial - only owner can authorize actions |
 
 ### Become an Operator
@@ -85,7 +85,7 @@ STEP 6:   Relayer executes the user's signed action
 Anyone can join Pons Network as an operator and earn income:
 
 - **Indexers** earn fees for indexing messages on destination chain
-- **Relayers** earn fees for executing actions
+- **Resolvers** earn fees for executing actions
 
 See [Running Your Own Operator](#running-your-own-operator) below.
 
@@ -130,7 +130,7 @@ User sends: 15.000000 USDC
                │
                ├── Protocol Fee:    Pons treasury
                ├── Indexer Fee:     Indexer operator (DYNAMIC)
-               ├── Relayer Fee:     Relayer operator (DYNAMIC)
+               ├── Resolver Fee:     Resolver operator (DYNAMIC)
                │
                └── Amount for Action: Your action
 ```
@@ -138,7 +138,7 @@ User sends: 15.000000 USDC
 ### Fee Calculation Examples
 
 ```typescript
-import { calculateFeesSync } from '@pons-network/sdk';
+import { calculateFeesSync } from '@pons-network/pons.js';
 import { parseUnits, formatUnits } from 'viem';
 
 // Standard fees (market rate)
@@ -148,14 +148,14 @@ console.log(`Standard: ${formatUnits(standardFees.amountForAction, 6)} USDC for 
 // Fast execution (2x fees)
 const fastFees = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.2', 6),   // Higher indexer fee
-  relayerFee: parseUnits('0.3', 6),   // Higher relayer fee
+  resolverFee: parseUnits('0.3', 6),   // Higher resolver fee
 });
 console.log(`Fast: ${formatUnits(fastFees.amountForAction, 6)} USDC for action`);
 
 // Economy (0.5x fees - slower but cheaper)
 const economyFees = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.05', 6),  // Lower indexer fee
-  relayerFee: parseUnits('0.08', 6),  // Lower relayer fee
+  resolverFee: parseUnits('0.08', 6),  // Lower resolver fee
 });
 console.log(`Economy: ${formatUnits(economyFees.amountForAction, 6)} USDC for action`);
 ```
@@ -185,7 +185,7 @@ const fees = calculateBurnForAction(parseUnits('10', 6));
 Send USDC cross-chain to your Smart Account.
 
 ```typescript
-import { PonsClient, Chain, calculateFeesSync } from '@pons-network/sdk';
+import { PonsClient, Chain, calculateFeesSync } from '@pons-network/pons.js';
 import { parseUnits, formatUnits } from 'viem';
 
 async function simpleBridge(walletClient: WalletClient, amount: string) {
@@ -203,7 +203,7 @@ async function simpleBridge(walletClient: WalletClient, amount: string) {
   console.log(`   Receive: ${formatUnits(fees.amountForAction, 6)} USDC`);
 
   // Send message on source chain
-  const result = await pons.executeCCTPTransfer({
+  const result = await pons.execute({
     amount: fees.burnAmount,
     action: {
       target: '0x0000000000000000000000000000000000000000',
@@ -212,7 +212,7 @@ async function simpleBridge(walletClient: WalletClient, amount: string) {
       feeConfig: {
         paymentToken: USDC_ADDRESS,
         indexerFee: fees.indexerFee,
-        relayerFee: fees.relayerFee,
+        resolverFee: fees.resolverFee,
       },
       permit2Setup: [],
       funding: {
@@ -227,7 +227,7 @@ async function simpleBridge(walletClient: WalletClient, amount: string) {
   console.log(`✅ Message sent!`);
   console.log(`   TX: ${result.txHash}`);
   console.log(`   Smart Account: ${result.smartAccountAddress}`);
-  console.log(`   Waiting for indexer and relayer...`);
+  console.log(`   Waiting for indexer and resolver...`);
 
   // Track the decentralized execution
   const tracker = pons.trackTransfer(
@@ -269,9 +269,9 @@ async function crossChainSwap(
 
   // Dynamic fees based on speed preference
   const feeOptions = {
-    fast: { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) },
-    standard: { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) },
-    economy: { indexerFee: parseUnits('0.05', 6), relayerFee: parseUnits('0.08', 6) },
+    fast: { indexerFee: parseUnits('0.2', 6), resolverFee: parseUnits('0.3', 6) },
+    standard: { indexerFee: parseUnits('0.1', 6), resolverFee: parseUnits('0.15', 6) },
+    economy: { indexerFee: parseUnits('0.05', 6), resolverFee: parseUnits('0.08', 6) },
   };
 
   const fees = calculateFeesSync(parseUnits(usdcAmount, 6), feeOptions[speedOption]);
@@ -296,7 +296,7 @@ async function crossChainSwap(
     }],
   });
 
-  const result = await pons.executeCCTPTransfer({
+  const result = await pons.execute({
     amount: fees.burnAmount,
     action: {
       target: UNISWAP_ROUTER,
@@ -305,7 +305,7 @@ async function crossChainSwap(
       feeConfig: {
         paymentToken: USDC_ADDRESS,
         indexerFee: fees.indexerFee,
-        relayerFee: fees.relayerFee,
+        resolverFee: fees.resolverFee,
       },
       permit2Setup: [],
       funding: {
@@ -365,7 +365,7 @@ async function buyNFT(
     args: [tokenId],
   });
 
-  const result = await pons.executeCCTPTransfer({
+  const result = await pons.execute({
     amount: fees.burnAmount,
     action: {
       target: nftContract,
@@ -374,7 +374,7 @@ async function buyNFT(
       feeConfig: {
         paymentToken: USDC_ADDRESS,
         indexerFee: fees.indexerFee,
-        relayerFee: fees.relayerFee,
+        resolverFee: fees.resolverFee,
       },
       permit2Setup: [],
       funding: {
@@ -416,8 +416,8 @@ async function buyGameItem(
 
   // Dynamic fees - pay more if you want the item faster!
   const feeConfig = prioritize
-    ? { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) }
-    : { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) };
+    ? { indexerFee: parseUnits('0.2', 6), resolverFee: parseUnits('0.3', 6) }
+    : { indexerFee: parseUnits('0.1', 6), resolverFee: parseUnits('0.15', 6) };
 
   const fees = calculateBurnForAction(itemPrice, feeConfig);
 
@@ -431,7 +431,7 @@ async function buyGameItem(
     args: [itemId],
   });
 
-  const result = await pons.executeCCTPTransfer({
+  const result = await pons.execute({
     amount: fees.burnAmount,
     action: {
       target: GAME_CONTRACT,
@@ -440,7 +440,7 @@ async function buyGameItem(
       feeConfig: {
         paymentToken: USDC_ADDRESS,
         indexerFee: fees.indexerFee,
-        relayerFee: fees.relayerFee,
+        resolverFee: fees.resolverFee,
       },
       permit2Setup: [],
       funding: {
@@ -479,10 +479,10 @@ async function batchSwapAndStake(walletClient: WalletClient, amount: string) {
     .addCall(UNISWAP_ROUTER, swapCalldata)
     .addCall(WETH_ADDRESS, approveStakeCalldata)
     .addCall(STAKING_CONTRACT, stakeCalldata)
-    .withFees(USDC_ADDRESS, fees.indexerFee, fees.relayerFee)
+    .withFees(USDC_ADDRESS, fees.indexerFee, fees.resolverFee)
     .build(BigInt(Date.now()), BigInt(Math.floor(Date.now() / 1000) + 3600), fees.expectedAmount);
 
-  const result = await pons.executeCCTPTransfer({
+  const result = await pons.execute({
     amount: fees.burnAmount,
     action: { /* ... */ },
   }, walletClient);
@@ -499,7 +499,7 @@ async function batchSwapAndStake(walletClient: WalletClient, amount: string) {
 
 ```typescript
 import { useWalletClient, useAccount } from 'wagmi';
-import { PonsClient, Chain, calculateFeesSync, TransferStatus } from '@pons-network/sdk';
+import { PonsClient, Chain, calculateFeesSync, TransferStatus } from '@pons-network/pons.js';
 import { useState } from 'react';
 
 function usePons() {
@@ -519,14 +519,14 @@ function usePons() {
 
     // Dynamic fees based on user preference
     const feeOptions = {
-      fast: { indexerFee: parseUnits('0.2', 6), relayerFee: parseUnits('0.3', 6) },
-      standard: { indexerFee: parseUnits('0.1', 6), relayerFee: parseUnits('0.15', 6) },
-      economy: { indexerFee: parseUnits('0.05', 6), relayerFee: parseUnits('0.08', 6) },
+      fast: { indexerFee: parseUnits('0.2', 6), resolverFee: parseUnits('0.3', 6) },
+      standard: { indexerFee: parseUnits('0.1', 6), resolverFee: parseUnits('0.15', 6) },
+      economy: { indexerFee: parseUnits('0.05', 6), resolverFee: parseUnits('0.08', 6) },
     };
     
     const fees = calculateFeesSync(parseUnits(amount, 6), feeOptions[speedMode]);
     
-    return await pons.executeCCTPTransfer({
+    return await pons.execute({
       amount: fees.burnAmount,
       action: { /* ... */ },
     }, walletClient);
@@ -557,7 +557,7 @@ function SpeedSelector({ value, onChange }) {
 ```typescript
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { PonsClient, Chain, calculateFeesSync, TransferStatus } from '@pons-network/sdk';
+import { PonsClient, Chain, calculateFeesSync, TransferStatus } from '@pons-network/pons.js';
 
 async function main() {
   const account = privateKeyToAccount(process.env.PRIVATE_KEY as Address);
@@ -577,7 +577,7 @@ async function main() {
   
   console.log(`Sending message on source chain...`);
 
-  const result = await pons.executeCCTPTransfer({
+  const result = await pons.execute({
     amount: fees.burnAmount,
     action: { /* ... */ },
   }, walletClient);
@@ -609,7 +609,7 @@ main().catch(console.error);
 
 ## Running Your Own Operator
 
-Pons Network is **permissionless** - anyone can run an indexer or relayer and earn fees!
+Pons Network is **permissionless** - anyone can run an indexer or resolver and earn fees!
 
 ### Why Become an Operator?
 
@@ -634,19 +634,19 @@ cp env.example .env
 docker-compose --profile indexer up -d
 ```
 
-### Running a Relayer
+### Running a Resolver
 
-Relayers execute user actions after messages are indexed.
+Resolvers execute user actions after messages are indexed.
 
 ```bash
-# Run as relayer (executor)
+# Run as resolver (executor)
 docker-compose --profile executor up -d
 ```
 
 ### Running Both
 
 ```bash
-# Run as full resolver (indexer + relayer)
+# Run as full resolver (indexer + resolver)
 docker-compose --profile both up -d
 ```
 
@@ -670,7 +670,7 @@ Track your cross-chain transfers through these stages:
 | `ATTESTED` | Attestation verified |
 | `INDEXING` | Indexer processing |
 | `INDEXED` | Message indexed on destination |
-| `EXECUTING` | Relayer executing action |
+| `EXECUTING` | Resolver executing action |
 | `EXECUTED` | ✅ Complete! |
 | `FAILED` | ❌ Action failed |
 

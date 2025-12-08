@@ -31,7 +31,7 @@ Pons Network uses **dynamic fees** - just like Ethereum gas! Pay more for faster
 │               │                                                            │
 │               ├── Protocol Fee:   Pons treasury                            │
 │               ├── Indexer Fee:    Indexer operator (DYNAMIC)               │
-│               ├── Relayer Fee:    Relayer operator (DYNAMIC)               │
+│               ├── Resolver Fee:    Resolver operator (DYNAMIC)               │
 │               │                                                            │
 │               └── Amount for Action: Your action                           │
 │                                                                             │
@@ -51,17 +51,17 @@ Fees in Pons Network work like **Ethereum gas**:
 │                                                                             │
 │  ⚡ FAST (Higher fees)                                                      │
 │     Pay above market rate → Operators prioritize your transaction          │
-│     Example: indexerFee: 0.2 USDC, relayerFee: 0.3 USDC                   │
+│     Example: indexerFee: 0.2 USDC, resolverFee: 0.3 USDC                  │
 │     Estimated: ~5-10 minutes                                               │
 │                                                                             │
 │  🔄 STANDARD (Market rate)                                                  │
 │     Pay market rate → Normal execution speed                               │
-│     Example: indexerFee: 0.1 USDC, relayerFee: 0.15 USDC                  │
+│     Example: indexerFee: 0.1 USDC, resolverFee: 0.15 USDC                 │
 │     Estimated: ~15-20 minutes                                              │
 │                                                                             │
 │  🐢 ECONOMY (Lower fees)                                                    │
 │     Pay below market rate → Slower execution, but cheaper                  │
-│     Example: indexerFee: 0.05 USDC, relayerFee: 0.08 USDC                 │
+│     Example: indexerFee: 0.05 USDC, resolverFee: 0.08 USDC                │
 │     Estimated: ~30+ minutes                                                │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -113,18 +113,18 @@ const indexerFee = parseUnits('0.2', 6);  // Fast
 const indexerFee = parseUnits('0.05', 6); // Economy
 ```
 
-### 4. Relayer Fee (DYNAMIC)
+### 4. Resolver Fee (DYNAMIC)
 
-**Purpose**: Reward for the relayer who executes your action
+**Purpose**: Reward for the resolver who executes your action
 **Amount**: Dynamic - YOU choose!
 **When**: Before action executes
-**Recipient**: Relayer operator (decentralized)
+**Recipient**: Resolver operator (decentralized)
 
 ```typescript
 // You set this - higher = faster execution
-const relayerFee = parseUnits('0.15', 6); // Standard
-const relayerFee = parseUnits('0.3', 6);  // Fast
-const relayerFee = parseUnits('0.08', 6); // Economy
+const resolverFee = parseUnits('0.15', 6); // Standard
+const resolverFee = parseUnits('0.3', 6);  // Fast
+const resolverFee = parseUnits('0.08', 6); // Economy
 ```
 
 ---
@@ -136,7 +136,7 @@ const relayerFee = parseUnits('0.08', 6); // Economy
 Calculate fees with custom fee rates.
 
 ```typescript
-import { calculateFeesSync } from '@pons-network/sdk';
+import { calculateFeesSync } from '@pons-network/pons.js';
 import { parseUnits, formatUnits } from 'viem';
 
 // Standard fees
@@ -145,13 +145,13 @@ const standard = calculateFeesSync(parseUnits('15', 6));
 // Fast fees (2x operator fees)
 const fast = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.2', 6),
-  relayerFee: parseUnits('0.3', 6),
+  resolverFee: parseUnits('0.3', 6),
 });
 
 // Economy fees (0.5x operator fees)
 const economy = calculateFeesSync(parseUnits('15', 6), {
   indexerFee: parseUnits('0.05', 6),
-  relayerFee: parseUnits('0.08', 6),
+  resolverFee: parseUnits('0.08', 6),
 });
 
 console.log('Standard:', formatUnits(standard.amountForAction, 6), 'USDC');
@@ -164,7 +164,7 @@ console.log('Economy:', formatUnits(economy.amountForAction, 6), 'USDC');
 Reverse calculation: Given how much you need for an action, calculate send amount.
 
 ```typescript
-import { calculateBurnForAction } from '@pons-network/sdk';
+import { calculateBurnForAction } from '@pons-network/pons.js';
 
 // NFT costs 10 USDC - how much to send?
 const fees = calculateBurnForAction(parseUnits('10', 6));
@@ -173,7 +173,7 @@ console.log('Send:', formatUnits(fees.burnAmount, 6), 'USDC');
 // Same, but with fast execution
 const fastFees = calculateBurnForAction(parseUnits('10', 6), {
   indexerFee: parseUnits('0.2', 6),
-  relayerFee: parseUnits('0.3', 6),
+  resolverFee: parseUnits('0.3', 6),
 });
 console.log('Send (fast):', formatUnits(fastFees.burnAmount, 6), 'USDC');
 ```
@@ -183,7 +183,7 @@ console.log('Send (fast):', formatUnits(fastFees.burnAmount, 6), 'USDC');
 Validate if send amount is sufficient.
 
 ```typescript
-import { validateActionFeasibility } from '@pons-network/sdk';
+import { validateActionFeasibility } from '@pons-network/pons.js';
 
 const result = validateActionFeasibility(
   parseUnits('15', 6),  // User sends
@@ -200,12 +200,12 @@ if (!result.feasible) {
 Default fee constants (standard market rate).
 
 ```typescript
-import { DEFAULT_FEES } from '@pons-network/sdk';
+import { DEFAULT_FEES } from '@pons-network/pons.js';
 
 DEFAULT_FEES.CCTP_FEE_BPS      // 1n (0.01%)
 DEFAULT_FEES.PROTOCOL_FEE_BPS  // 10n (0.1%)
 DEFAULT_FEES.INDEXER_FEE       // 100000n (0.1 USDC) - standard rate
-DEFAULT_FEES.RELAYER_FEE       // 150000n (0.15 USDC) - standard rate
+DEFAULT_FEES.RESOLVER_FEE      // 150000n (0.15 USDC) - standard rate
 ```
 
 ---
@@ -214,7 +214,7 @@ DEFAULT_FEES.RELAYER_FEE       // 150000n (0.15 USDC) - standard rate
 
 ### Recommended Fee Levels
 
-| Speed | Indexer Fee | Relayer Fee | Est. Time | Use Case |
+| Speed | Indexer Fee | Resolver Fee | Est. Time | Use Case |
 |-------|------------|-------------|-----------|----------|
 | ⚡ Fast | 0.2 USDC | 0.3 USDC | 5-10 min | Time-sensitive |
 | 🔄 Standard | 0.1 USDC | 0.15 USDC | 15-20 min | Normal use |
@@ -226,17 +226,17 @@ DEFAULT_FEES.RELAYER_FEE       // 150000n (0.15 USDC) - standard rate
 const SPEED_OPTIONS = {
   fast: {
     indexerFee: parseUnits('0.2', 6),
-    relayerFee: parseUnits('0.3', 6),
+    resolverFee: parseUnits('0.3', 6),
     label: '⚡ Fast (~5-10 min)',
   },
   standard: {
     indexerFee: parseUnits('0.1', 6),
-    relayerFee: parseUnits('0.15', 6),
+    resolverFee: parseUnits('0.15', 6),
     label: '🔄 Standard (~15-20 min)',
   },
   economy: {
     indexerFee: parseUnits('0.05', 6),
-    relayerFee: parseUnits('0.08', 6),
+    resolverFee: parseUnits('0.08', 6),
     label: '🐢 Economy (~30+ min)',
   },
 };
@@ -280,7 +280,7 @@ All fees are paid **BEFORE** the action executes:
 │  2. Fees paid FIRST:                                           │
 │     ├── Protocol fee   → Pons treasury                         │
 │     ├── Indexer fee    → Indexer operator                      │
-│     └── Relayer fee    → Relayer operator                      │
+│     └── Resolver fee    → Resolver operator                      │
 │                                                                 │
 │  3. YOUR ACTION EXECUTES                                        │
 │     └── Uses remaining USDC freely                             │
@@ -300,7 +300,7 @@ All fees are paid **BEFORE** the action executes:
 // Good - user has control
 const fees = calculateFeesSync(amount, {
   indexerFee: userSelectedIndexerFee,
-  relayerFee: userSelectedRelayerFee,
+  resolverFee: userSelectedResolverFee,
 });
 
 // Bad - hardcoded fees
@@ -348,14 +348,14 @@ if (!validation.feasible) {
 networkFee = sendAmount × 0.0001
 expectedAmount = sendAmount - networkFee
 protocolFee = expectedAmount × 0.001
-totalOperatorFees = protocolFee + indexerFee + relayerFee
+totalOperatorFees = protocolFee + indexerFee + resolverFee
 amountForAction = expectedAmount - totalOperatorFees
 ```
 
 ### Reverse Calculation (action → send)
 
 ```
-baseNeeded = actionAmount + indexerFee + relayerFee
+baseNeeded = actionAmount + indexerFee + resolverFee
 expectedAmount = baseNeeded × 10000 ÷ (10000 - protocolFeeBps)
 sendAmount = expectedAmount × 10000 ÷ (10000 - networkFeeBps)
 ```
@@ -380,4 +380,4 @@ sendAmount = expectedAmount × 10000 ÷ (10000 - networkFeeBps)
 
 **Cause**: Fees too low for current market conditions.
 
-**Solution**: Increase indexer and relayer fees.
+**Solution**: Increase indexer and resolver fees.

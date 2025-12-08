@@ -98,7 +98,7 @@ export class TransferTracker extends EventEmitter {
         const hasAttestation = await this.checkAttestation();
         if (hasAttestation) {
           this.emitStatus(TransferStatus.ATTESTED);
-          // After attestation, mark as announced (ready for indexers/relayers)
+          // After attestation, mark as announced (ready for indexers/resolvers)
           // In production, this would be set after confirming Waku broadcast
           // For now, we assume announcement happened if Waku was enabled
           setTimeout(() => {

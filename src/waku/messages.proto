@@ -40,7 +40,7 @@ message ActionExecuted {
   string nonce = 6;
   string gas_used = 7;
   string gas_reimbursement_usdc = 8;
-  string relayer_fee_usdc = 9;
+  string resolver_fee_usdc = 9;
   bool success = 10;
 }
 
