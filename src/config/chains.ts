@@ -52,6 +52,12 @@ export const arcTestnet: FullChainConfig = {
   messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as Address,
   usdc: '0x3600000000000000000000000000000000000000' as Address,
   factory: '0x8654abbd9ef1767f20e899348df05c09ecd0d070' as Address, // Beacon Proxy Factory
+  nativeCurrency: {
+    name: 'USDC',
+    symbol: 'USDC',
+    decimals: 18,
+  },
+  blockExplorerUrl: 'https://testnet.arcscan.app',
 };
 
 /**
@@ -66,6 +72,12 @@ export const sepolia: FullChainConfig = {
   messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as Address,
   usdc: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
   // factory: undefined - not yet deployed
+  nativeCurrency: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  blockExplorerUrl: 'https://sepolia.etherscan.io',
 };
 
 /**
@@ -80,6 +92,12 @@ export const ethereum: FullChainConfig = {
   messageTransmitter: '0x0a992d191DEeC32aFe36203Ad87D7d289a738F81' as Address,
   usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address,
   // factory: undefined - not yet deployed
+  nativeCurrency: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  blockExplorerUrl: 'https://etherscan.io',
 };
 
 /**

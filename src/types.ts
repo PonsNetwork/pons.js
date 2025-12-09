@@ -131,6 +131,12 @@ export interface ChainConfig {
   tokenMessenger: Address;
   messageTransmitter: Address;
   usdc: Address;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  blockExplorerUrl?: string;
 }
 
 // ============ Transfer Types ============

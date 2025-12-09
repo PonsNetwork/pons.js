@@ -446,12 +446,17 @@ export class PonsClient {
         } catch (switchError: any) {
           // Chain not added - try to add it
           if (switchError.code === 4902) {
+            const destConfig = this.resolvedConfig.destinationChain;
             await ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [{
                 chainId: destChainHex,
-                chainName: this.resolvedConfig.destinationChain.name,
-                rpcUrls: [this.resolvedConfig.destinationChain.rpcUrl],
+                chainName: destConfig.name,
+                nativeCurrency: destConfig.nativeCurrency,
+                rpcUrls: [destConfig.rpcUrl],
+                blockExplorerUrls: destConfig.blockExplorerUrl 
+                  ? [destConfig.blockExplorerUrl] 
+                  : undefined,
               }],
             });
           } else {
@@ -488,12 +493,17 @@ export class PonsClient {
         } catch (switchError: any) {
           // Chain not added - try to add it
           if (switchError.code === 4902) {
+            const sourceConfig = this.resolvedConfig.sourceChain;
             await ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [{
                 chainId: sourceChainHex,
-                chainName: this.resolvedConfig.sourceChain.name,
-                rpcUrls: [this.resolvedConfig.sourceChain.rpcUrl],
+                chainName: sourceConfig.name,
+                nativeCurrency: sourceConfig.nativeCurrency,
+                rpcUrls: [sourceConfig.rpcUrl],
+                blockExplorerUrls: sourceConfig.blockExplorerUrl 
+                  ? [sourceConfig.blockExplorerUrl] 
+                  : undefined,
               }],
             });
           } else {
