@@ -376,7 +376,17 @@ Chain.ETHEREUM     // Ethereum mainnet (coming soon)
 | Multiple transactions | One signature |
 | Need gas on destination | Fees in USDC only |
 
-**Pons Network** provides a decentralized execution layer, giving your users a seamless and trustless multi-chain experience.
+**Pons Network** provides a decentralized execution layer, giving your users a trustless multi-chain experience.
+
+---
+
+## Links
+
+- **Website**: [https://pons.sh/](https://pons.sh/)
+- **Documentation**: [https://docs.pons.sh/](https://docs.pons.sh/)
+- **Twitter/X**: [https://x.com/Pons_Network](https://x.com/Pons_Network)
+- **Discord**: [https://discord.com/invite/ponsnetwork](https://discord.com/invite/ponsnetwork)
+- **GitHub**: [https://github.com/PonsNetwork](https://github.com/PonsNetwork)
 
 ---
 
