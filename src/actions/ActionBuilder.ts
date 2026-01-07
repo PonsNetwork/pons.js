@@ -2,18 +2,21 @@ import type { Address, Hex } from 'viem';
 import type { IAction, Permit2Setup, ActionOptions } from '../types.js';
 
 /**
- * Pons ActionBuilder v2.0
- * 
+ * Pons ActionBuilder v3.0
+ *
  * Fluent API for building cross-chain actions
+ * V3: Supports cross-chain signatures (sourceChainId, targetChainId)
+ *     - User signs on source chain, action executes on target chain
+ *     - No MetaMask network switching required!
  * V2: Supports both single and batch (multi-step) actions
- * 
+ *
  * @example
- * // Single action - simple swap
+ * // Single action - simple swap (cross-chain signature)
  * const action = new ActionBuilder()
  *   .addCall(uniswapRouter, swapCalldata)
  *   .withFees(USDC, 100000n, 200000n)
- *   .build(nonce, deadline, bridgedAmount);
- * 
+ *   .build(sourceChainId, targetChainId, nonce, deadline, bridgedAmount);
+ *
  * @example
  * // Batch action - approve + swap + stake
  * const action = new ActionBuilder()
@@ -21,15 +24,15 @@ import type { IAction, Permit2Setup, ActionOptions } from '../types.js';
  *   .addCall(uniswapRouter, swapCalldata)
  *   .addCall(lido, stakeCalldata, stakeValue)
  *   .withFees(USDC, 100000n, 500000n)
- *   .build(nonce, deadline, bridgedAmount);
- * 
+ *   .build(sourceChainId, targetChainId, nonce, deadline, bridgedAmount);
+ *
  * @example
  * // DeFi deposit with Permit2
  * const action = new ActionBuilder()
  *   .addCall(aavePool, depositCalldata)
  *   .withPermit2(USDC, aavePool, amount)
  *   .withFees(USDC, 50000n, 100000n)
- *   .build(nonce, deadline, bridgedAmount);
+ *   .build(sourceChainId, targetChainId, nonce, deadline, bridgedAmount);
  */
 export class ActionBuilder {
   // V2: Store calls as arrays for batch support
@@ -38,17 +41,17 @@ export class ActionBuilder {
     callData: Hex;
     value: bigint;
   }> = [];
-  
+
   private _isNoAction: boolean = false;  // Flag for simple bridge (no action)
-  
+
   // Fees
   private _paymentToken: Address = '0x0000000000000000000000000000000000000000';
   private _indexerFee: bigint = 0n;
   private _resolverFee: bigint = 0n;
-  
+
   // Permit2
   private _permit2Setup: Permit2Setup[] = [];
-  
+
   // Funding
   private _ethNeeded: bigint = 0n;
   private _tokensNeeded: Address[] = [];
@@ -169,15 +172,26 @@ export class ActionBuilder {
 
   /**
    * Build the complete action
+   * V3: Now requires sourceChainId and targetChainId for cross-chain signatures
+   * @param sourceChainId Chain where user is signing (their current network)
+   * @param targetChainId Chain where action will execute (destination)
    * @param nonce Unique nonce for replay protection
    * @param deadline Timestamp when action expires
    * @param expectedAmount Amount of USDC being bridged
    */
-  build(nonce: bigint, deadline: bigint, expectedAmount: bigint): IAction {
+  build(
+    sourceChainId: bigint,
+    targetChainId: bigint,
+    nonce: bigint,
+    deadline: bigint,
+    expectedAmount: bigint
+  ): IAction {
     // Handle no-action case (simple bridge)
     if (this._isNoAction || this._calls.length === 0) {
       // For no-action, we still need arrays (empty or with zero address)
       return {
+        sourceChainId,
+        targetChainId,
         targets: ['0x0000000000000000000000000000000000000000'],
         callDatas: ['0x'],
         values: [0n],
@@ -205,6 +219,8 @@ export class ActionBuilder {
     }
 
     return {
+      sourceChainId,
+      targetChainId,
       targets: this._calls.map(c => c.target),
       callDatas: this._calls.map(c => c.callData),
       values: this._calls.map(c => c.value),
@@ -247,30 +263,40 @@ export class ActionBuilder {
 
   /**
    * Create action from ActionOptions (nested struct format)
+   * V3: Now requires sourceChainId and targetChainId for cross-chain signatures
    * Supports both single action (target/callData) and batch (targets/callDatas)
+   *
+   * @param options Action options
+   * @param sourceChainId Chain where user is signing
+   * @param targetChainId Chain where action will execute
+   * @param nonce Unique nonce for replay protection
+   * @param deadline Timestamp when action expires
+   * @param expectedAmount Amount of USDC being bridged
    */
   static fromOptions(
     options: ActionOptions,
+    sourceChainId: bigint,
+    targetChainId: bigint,
     nonce: bigint,
     deadline: bigint,
     expectedAmount: bigint
   ): IAction {
     const builder = new ActionBuilder();
-    
+
     // Check if batch format is used (takes precedence)
     if (options.targets && options.targets.length > 0) {
       // Batch format
       const values = options.values || options.targets.map(() => 0n);
       const callDatas = options.callDatas || options.targets.map(() => '0x' as Hex);
-      
+
       for (let i = 0; i < options.targets.length; i++) {
         builder.addCall(options.targets[i], callDatas[i], values[i]);
       }
     } else if (options.target) {
       // Single action format (legacy)
-      const isNoAction = options.target === '0x0000000000000000000000000000000000000000' && 
+      const isNoAction = options.target === '0x0000000000000000000000000000000000000000' &&
                          (!options.callData || options.callData === '0x');
-      
+
       if (isNoAction) {
         builder.noAction();
       } else {
@@ -280,7 +306,7 @@ export class ActionBuilder {
       // No action specified
       builder.noAction();
     }
-    
+
     builder.withFees(
       options.feeConfig.paymentToken,
       options.feeConfig.indexerFee,
@@ -296,7 +322,7 @@ export class ActionBuilder {
     if (options.funding) {
       builder._ethNeeded = options.funding.ethNeeded;
       builder._maxReimbursement = options.funding.maxReimbursement;
-      
+
       // Handle tokensNeeded and tokenAmounts arrays
       if (options.funding.tokensNeeded && options.funding.tokenAmounts) {
         for (let i = 0; i < options.funding.tokensNeeded.length; i++) {
@@ -306,7 +332,7 @@ export class ActionBuilder {
       }
     }
 
-    return builder.build(nonce, deadline, expectedAmount);
+    return builder.build(sourceChainId, targetChainId, nonce, deadline, expectedAmount);
   }
 
   /**
@@ -337,6 +363,7 @@ export class ActionBuilder {
 
   /**
    * Create a simple contract call action
+   * V3: Now requires sourceChainId and targetChainId for cross-chain signatures
    */
   static simpleCall(
     target: Address,
@@ -344,6 +371,8 @@ export class ActionBuilder {
     paymentToken: Address,
     indexerFee: bigint,
     resolverFee: bigint,
+    sourceChainId: bigint,
+    targetChainId: bigint,
     nonce: bigint,
     deadline: bigint,
     expectedAmount: bigint
@@ -351,7 +380,7 @@ export class ActionBuilder {
     return new ActionBuilder()
       .addCall(target, callData)
       .withFees(paymentToken, indexerFee, resolverFee)
-      .build(nonce, deadline, expectedAmount);
+      .build(sourceChainId, targetChainId, nonce, deadline, expectedAmount);
   }
 }
 

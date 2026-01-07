@@ -7,17 +7,19 @@ import type {
   TransferResult,
   TransferAnnouncement,
   IAction,
+  ExecutionProgress, // Type
 } from './types.js';
-import { isSimpleConfig } from './types.js';
-import { WakuManager } from './waku/WakuManager.js';
-import { WakuRestManager } from './waku/WakuRestManager.js';
+import {
+  ExecutionStep, // Value (Enum)
+  isSimpleConfig,
+} from './types.js';
 import { TransferTracker } from './polling/TransferTracker.js';
 import { signAction, createWalletSigner } from './signing/eip712.js';
 import { encodeHookData, addressToBytes32, decodeHookData } from './cctp/messageBuilder.js';
 import { validateBurnAmount, calculateMinBurnAmount } from './cctp/fees.js';
-import { FACTORY_ABI, TOKEN_MESSENGER_ABI, ERC20_ABI, DEFAULTS, WAKU_CONFIG, PONS_GATEWAY } from './config/constants.js';
+import { FACTORY_ABI, PONS_GATEWAY_ABI, ERC20_ABI, DEFAULTS, PONS_GATEWAY } from './config/constants.js';
 import { getChain, CHAINS, type FullChainConfig, type ChainName } from './config/chains.js';
-import { PonsGatewayClient, type GatewayConfigResponse } from './gateway/PonsGatewayClient.js';
+import { PonsGatewayClient } from './gateway/PonsGatewayClient.js';
 import { calculateDeadline } from './utils/helpers.js';
 import { DEFAULT_INIT_CODE_HASH } from './utils/create2.js';
 import { ActionBuilder, validateAction } from './actions/ActionBuilder.js';
@@ -66,14 +68,14 @@ import { ActionBuilder, validateAction } from './actions/ActionBuilder.js';
  */
 export class PonsClient {
   /**
-   * Create a PonsClient with config fetched from gateway
-   * 
-   * Factory addresses and CCTP contracts are fetched automatically from gateway.
-   * You must provide RPC URLs for the chains you want to use.
-   * 
+   * Create a PonsClient using bundled SDK chain configs
+   *
+   * All chain configs (factory, CCTP contracts, ponsGateway) come from the SDK's
+   * bundled chain definitions. No external fetching required.
+   *
    * @example
    * import { PonsClient, Chain } from '@pons/sdk';
-   * 
+   *
    * const pons = await PonsClient.create({
    *   from: Chain.SEPOLIA,
    *   to: Chain.ARC_TESTNET,
@@ -94,57 +96,39 @@ export class PonsClient {
     gatewayUrl?: string;
   }): Promise<PonsClient> {
     const gatewayUrl = config.gatewayUrl || PONS_GATEWAY.DEFAULT_URL;
-    
-    console.log(`🔄 Fetching config from ${gatewayUrl}...`);
-    const gateway = new PonsGatewayClient(gatewayUrl);
-    
-    let gatewayConfig: GatewayConfigResponse;
-    try {
-      gatewayConfig = await gateway.getConfig();
-    } catch (error) {
-      console.warn('⚠️ Failed to fetch config from gateway, using bundled defaults');
-      // Fall back to bundled config
-      const client = new PonsClient({
-        from: config.from as any,
-        to: config.to as any,
-        sourceRpcUrl: config.sourceRpcUrl,
-        destinationRpcUrl: config.destinationRpcUrl,
-        gatewayUrl,
-      });
-      await client.initialize();
-      return client;
+
+    // Get bundled chain configs from SDK
+    const sourceChain = getChain(config.from);
+    const destChain = getChain(config.to);
+
+    // Validate chains exist
+    if (!sourceChain) {
+      throw new Error(`Source chain "${config.from}" not found in SDK config`);
     }
-    
-    const sourceChainConfig = gatewayConfig.chains[config.from];
-    const destChainConfig = gatewayConfig.chains[config.to];
-    
-    if (!sourceChainConfig) {
-      throw new Error(`Source chain "${config.from}" not found. Available: ${Object.keys(gatewayConfig.chains).join(', ')}`);
+    if (!destChain) {
+      throw new Error(`Destination chain "${config.to}" not found in SDK config`);
     }
-    if (!destChainConfig) {
-      throw new Error(`Destination chain "${config.to}" not found. Available: ${Object.keys(gatewayConfig.chains).join(', ')}`);
+    if (!destChain.factory) {
+      throw new Error(`No factory configured for ${config.to}. SmartAccounts can only be created on chains with deployed factories.`);
     }
-    if (!destChainConfig.factory) {
-      throw new Error(`No factory deployed on ${config.to}. SmartAccounts can only be created on chains with deployed factories.`);
-    }
-    
-    // Update local chain cache with gateway config (add RPC URLs from developer)
+
+    // Update chain configs with provided RPC URLs
     CHAINS[config.from] = {
-      ...sourceChainConfig,
+      ...sourceChain,
       rpcUrl: config.sourceRpcUrl,
     } as FullChainConfig;
-    
+
     CHAINS[config.to] = {
-      ...destChainConfig,
+      ...destChain,
       rpcUrl: config.destinationRpcUrl,
-      factory: destChainConfig.factory as Address,
     } as FullChainConfig;
-    
-    console.log(`✅ Config loaded from gateway`);
-    console.log(`   ${sourceChainConfig.name} → ${destChainConfig.name}`);
-    console.log(`   Factory: ${destChainConfig.factory}`);
-    
-    // Create client with resolved config
+
+    console.log(`🚀 Pons SDK initialized`);
+    console.log(`   ${sourceChain.name} → ${destChain.name}`);
+    console.log(`   Factory: ${destChain.factory}`);
+    console.log(`   PonsGateway (source): ${sourceChain.ponsGateway}`);
+
+    // Create client with bundled config
     const client = new PonsClient({
       from: config.from as any,
       to: config.to as any,
@@ -152,34 +136,29 @@ export class PonsClient {
       destinationRpcUrl: config.destinationRpcUrl,
       gatewayUrl,
     });
-    
+
     await client.initialize();
     return client;
   }
 
   private sourceClient: PublicClient;
   private destinationClient: PublicClient;
-  private wakuManager?: WakuManager;
-  private wakuRestManager?: WakuRestManager;
   private gatewayClient?: PonsGatewayClient;
-  private useWakuPeer: boolean;
-  private useGateway: boolean;
-  private wakuEnabled: boolean;
   private factoryAddress: Address;
   private resolvedConfig: PonsClientConfig;
 
   constructor(config: PonsConfig) {
     // Resolve simplified config to full config
     this.resolvedConfig = this.resolveConfig(config);
-    
+
     // Get source and destination chain configs
     const sourceChain = this.resolvedConfig.sourceChain;
     const destChain = this.resolvedConfig.destinationChain;
-    
+
     // Resolve factory address from chain config or explicit override
     const destChainConfig = getChain(destChain.id) as FullChainConfig;
     const factoryAddress = this.resolvedConfig.factoryAddress || destChainConfig.factory;
-    
+
     if (!factoryAddress) {
       throw new Error(
         `No factory deployed on ${destChain.name} (chain ${destChain.id}). ` +
@@ -187,7 +166,7 @@ export class PonsClient {
       );
     }
     this.factoryAddress = factoryAddress;
-    
+
     console.log(`🚀 Pons SDK initialized`);
     console.log(`   ${sourceChain.name} → ${destChain.name}`);
     console.log(`   Factory: ${this.factoryAddress}`);
@@ -200,41 +179,10 @@ export class PonsClient {
       transport: http(destChain.rpcUrl),
     });
 
-    // Determine mode: Gateway (default) > Direct Peer > Direct REST
-    const cfg = this.resolvedConfig;
-    this.useGateway = !cfg.ponsPeerAddress && !cfg.ponsRelayUrl;
-    this.useWakuPeer = !!cfg.ponsPeerAddress;
-    this.wakuEnabled = true;
-
-    if (this.wakuEnabled) {
-      if (this.useGateway) {
-        // Default: Use Pons Gateway
-        console.log('🌐 Using Pons Gateway mode');
-        const gatewayUrl = cfg.gatewayUrl || PONS_GATEWAY.DEFAULT_URL;
-        this.gatewayClient = new PonsGatewayClient(gatewayUrl);
-      } else if (this.useWakuPeer) {
-        console.log('🔗 Using Pons Peer mode (direct)');
-        this.wakuManager = new WakuManager(
-          cfg.ponsBootstrapPeers,
-          cfg.ponsPeerAddress,
-          cfg.ponsWsPort ?? 8000,
-          cfg.ponsClusterId ?? WAKU_CONFIG.CLUSTER_ID,
-          cfg.ponsShard ?? WAKU_CONFIG.SHARD,
-          cfg.contentTopicPrefix ?? WAKU_CONFIG.CONTENT_TOPIC_PREFIX,
-          cfg.contentTopicSuffix ?? WAKU_CONFIG.CONTENT_TOPIC_SUFFIX
-        );
-      } else {
-        console.log('🌐 Using Pons Relay mode (direct)');
-        const restUrl = cfg.ponsRelayUrl || WAKU_CONFIG.DEFAULT_REST_URL;
-        this.wakuRestManager = new WakuRestManager(
-          restUrl,
-          cfg.ponsClusterId ?? WAKU_CONFIG.CLUSTER_ID,
-          cfg.ponsShard ?? WAKU_CONFIG.SHARD,
-          cfg.contentTopicPrefix ?? WAKU_CONFIG.CONTENT_TOPIC_PREFIX,
-          cfg.contentTopicSuffix ?? WAKU_CONFIG.CONTENT_TOPIC_SUFFIX
-        );
-      }
-    }
+    // Initialize Gateway client for network announcements
+    const gatewayUrl = this.resolvedConfig.gatewayUrl || PONS_GATEWAY.DEFAULT_URL;
+    console.log('🌐 Using Pons Gateway mode');
+    this.gatewayClient = new PonsGatewayClient(gatewayUrl);
   }
 
   /**
@@ -273,20 +221,12 @@ export class PonsClient {
    * Initialize the client (required before use)
    */
   async initialize(): Promise<void> {
-    if (!this.wakuEnabled) {
-      return;
-    }
-
     try {
-      if (this.useGateway && this.gatewayClient) {
+      if (this.gatewayClient) {
         await this.gatewayClient.initialize();
-      } else if (this.useWakuPeer && this.wakuManager) {
-        await this.wakuManager.initialize();
-      } else if (this.wakuRestManager) {
-        await this.wakuRestManager.initialize();
       }
     } catch (error) {
-      console.warn('⚠️ Network initialization failed, SDK will continue without it:', error);
+      console.warn('⚠️ Gateway initialization failed, SDK will continue without it:', error);
     }
   }
 
@@ -323,8 +263,16 @@ export class PonsClient {
    */
   async execute(
     params: CCTPTransferParams,
-    signer: any
+    signer: any,
+    onProgress?: (progress: ExecutionProgress) => void
   ): Promise<TransferResult> {
+    // Helper to emit progress
+    const emitProgress = (step: ExecutionStep, message?: string, txHash?: string) => {
+      if (onProgress) onProgress({ step, message, txHash });
+    };
+
+    emitProgress(ExecutionStep.BUILDING, 'Preparing transaction...');
+
     // Create wallet signer wrapper
     const walletSigner = createWalletSigner(signer);
 
@@ -364,7 +312,7 @@ export class PonsClient {
         this.resolvedConfig.sourceChain.domain,
         this.resolvedConfig.destinationChain.domain
       );
-      
+
       throw new Error(
         `${validation.message}\n` +
         `💡 Suggestion: Burn at least ${Number(minBurn) / 1e6} USDC to cover all fees.`
@@ -386,9 +334,16 @@ export class PonsClient {
     // Use the validated expectedAmount (after CCTP fees)
     const expectedAmount = validation.breakdown.expectedAmount;
 
-    // Build the complete action with adjusted expectedAmount
+    // Get chain IDs for cross-chain signature
+    const sourceChainId = this.resolvedConfig.sourceChain.id;
+    const destChainId = this.resolvedConfig.destinationChain.id;
+
+    // Build the complete action with chain IDs for cross-chain signature
+    // V3: User signs on source chain, action executes on destination chain
     const action = ActionBuilder.fromOptions(
       params.action,
+      BigInt(sourceChainId),  // Chain where user is signing
+      BigInt(destChainId),    // Chain where action will execute
       nonce,
       deadline,
       expectedAmount  // Use expectedAmount after CCTP fees
@@ -398,6 +353,8 @@ export class PonsClient {
     validateAction(action, true, protocolFeeBps);
 
     console.log('📦 [PonsClient] Action built:', {
+      sourceChainId: action.sourceChainId.toString(),
+      targetChainId: action.targetChainId.toString(),
       targets: action.targets,
       values: action.values.map(v => v.toString()),
       actionCount: action.targets.length,
@@ -417,123 +374,19 @@ export class PonsClient {
       },
     });
 
-    // Sign the action for destination chain
-    // MetaMask requires chain switch for EIP-712 signing (chainId must match active chain)
-    console.log(`🔐 Signing action for destination chain (chainId: ${this.resolvedConfig.destinationChain.id})...`);
-    
-    let signature: `0x${string}`;
-    const destChainId = this.resolvedConfig.destinationChain.id;
-    
-    // Check if we need to switch chains for signing
-    const sourceChainId = this.resolvedConfig.sourceChain.id;
-    
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      const ethereum = (window as any).ethereum;
-      const currentChainId = await ethereum.request({ method: 'eth_chainId' });
-      const currentChainIdNum = parseInt(currentChainId, 16);
-      
-      console.log(`📍 Current chain: ${currentChainIdNum}, Source: ${sourceChainId}, Destination: ${destChainId}`);
-      
-      if (currentChainIdNum !== destChainId) {
-        console.log(`🔄 Switching to destination chain (${destChainId}) for signing...`);
-        const destChainHex = `0x${destChainId.toString(16)}`;
-        
-        try {
-          await ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: destChainHex }],
-          });
-        } catch (switchError: any) {
-          // Chain not added - try to add it
-          if (switchError.code === 4902) {
-            const destConfig = this.resolvedConfig.destinationChain;
-            await ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: destChainHex,
-                chainName: destConfig.name,
-                nativeCurrency: destConfig.nativeCurrency,
-                rpcUrls: [destConfig.rpcUrl],
-                blockExplorerUrls: destConfig.blockExplorerUrl 
-                  ? [destConfig.blockExplorerUrl] 
-                  : undefined,
-              }],
-            });
-          } else {
-            throw switchError;
-          }
-        }
-        
-        // Wait for chain switch to propagate
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // Sign on destination chain
-      signature = await signAction(
-        action,
-        smartAccountAddress,
-        destChainId,
-        walletSigner
-      );
-      
-      // Always ensure we're on source chain for approval and burn
-      // Check current chain after signing
-      const finalChainId = await ethereum.request({ method: 'eth_chainId' });
-      const finalChainIdNum = parseInt(finalChainId, 16);
-      
-      if (finalChainIdNum !== sourceChainId) {
-        console.log(`🔄 Switching to source chain (${sourceChainId}) for USDC approval and burn...`);
-        const sourceChainHex = `0x${sourceChainId.toString(16)}`;
-        
-        try {
-          await ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: sourceChainHex }],
-          });
-        } catch (switchError: any) {
-          // Chain not added - try to add it
-          if (switchError.code === 4902) {
-            const sourceConfig = this.resolvedConfig.sourceChain;
-            await ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: sourceChainHex,
-                chainName: sourceConfig.name,
-                nativeCurrency: sourceConfig.nativeCurrency,
-                rpcUrls: [sourceConfig.rpcUrl],
-                blockExplorerUrls: sourceConfig.blockExplorerUrl 
-                  ? [sourceConfig.blockExplorerUrl] 
-                  : undefined,
-              }],
-            });
-          } else {
-            throw switchError;
-          }
-        }
-        
-        // Wait for chain switch to propagate
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Verify switch was successful
-        const verifyChainId = await ethereum.request({ method: 'eth_chainId' });
-        const verifyChainIdNum = parseInt(verifyChainId, 16);
-        if (verifyChainIdNum !== sourceChainId) {
-          throw new Error(`Failed to switch to source chain. Expected: ${sourceChainId}, Got: ${verifyChainIdNum}`);
-        }
-        console.log(`✅ Switched to source chain (${sourceChainId})`);
-      } else {
-        console.log(`✓ Already on source chain (${sourceChainId})`);
-      }
-    } else {
-      // Non-browser environment or no ethereum - try direct signing
-      signature = await signAction(
-        action,
-        smartAccountAddress,
-        destChainId,
-        walletSigner
-      );
-    }
-    
+    // Sign the action on source chain (no network switch needed!)
+    // V3: Cross-chain signatures allow signing on source chain for destination chain execution
+    console.log(`🔐 Signing cross-chain action (source: ${sourceChainId}, target: ${destChainId})...`);
+    emitProgress(ExecutionStep.SIGNING, 'Please sign the cross-chain authorization');
+
+    // V3: Cross-chain signatures - no network switching needed!
+    // User signs on source chain, signature is valid for destination chain execution
+    const signature = await signAction(
+      action,
+      smartAccountAddress,
+      walletSigner
+    );
+
     console.log('✅ Action signed');
 
     // Encode hook data
@@ -543,10 +396,12 @@ export class PonsClient {
     await this.ensureUSDCApproval(
       walletSigner.address,
       params.amount,
-      signer
+      signer,
+      emitProgress
     );
 
     // Execute CCTP burn
+    emitProgress(ExecutionStep.EXECUTING_BRIDGE, 'Initiating bridge transaction...');
     const txHash = await this.executeCCTPBurn(
       params.amount,
       smartAccountAddress,
@@ -554,9 +409,10 @@ export class PonsClient {
       params.maxFee ?? DEFAULTS.MAX_FEE,
       signer
     );
+    emitProgress(ExecutionStep.COMPLETE, 'Bridge initiated', txHash);
 
     // Announce to network with trustless proofs
-    if (this.wakuEnabled && (this.gatewayClient || this.wakuManager || this.wakuRestManager)) {
+    if (this.gatewayClient) {
       console.log('📡 Broadcasting to Pons network (with proofs)...');
       await this.announceTransfer(
         txHash,
@@ -584,7 +440,8 @@ export class PonsClient {
   private async ensureUSDCApproval(
     owner: Address,
     amount: bigint,
-    signer: any
+    signer: any,
+    emitProgress?: (step: ExecutionStep, message?: string, txHash?: string) => void
   ): Promise<void> {
     try {
       const balance = await this.sourceClient.readContract({
@@ -601,30 +458,35 @@ export class PonsClient {
         throw new Error(`Insufficient USDC balance. Have: ${(Number(balance) / 1e6).toFixed(6)} USDC, Need: ${(Number(amount) / 1e6).toFixed(6)} USDC`);
       }
 
+      // Spender is PonsGateway
+      const spender = this.resolvedConfig.sourceChain.ponsGateway;
+
       const allowance = await this.sourceClient.readContract({
         address: this.resolvedConfig.sourceChain.usdc,
         abi: ERC20_ABI,
         functionName: 'allowance',
-        args: [owner, this.resolvedConfig.sourceChain.tokenMessenger],
+        args: [owner, spender],
       }) as bigint;
 
       console.log(`✓ Current allowance: ${allowance.toString()} (${(Number(allowance) / 1e6).toFixed(6)} USDC)`);
+      console.log(`   Spender: ${spender}`);
 
       if (allowance < amount) {
         console.log('⏳ Approving USDC...');
-        
-        const walletClient = signer.account 
-          ? signer 
+        if (emitProgress) emitProgress(ExecutionStep.APPROVING_USDC, 'Please approve USDC spending');
+
+        const walletClient = signer.account
+          ? signer
           : createWalletClient({
-              account: owner,
-              transport: http(this.resolvedConfig.sourceChain.rpcUrl),
-            });
+            account: owner,
+            transport: http(this.resolvedConfig.sourceChain.rpcUrl),
+          });
 
         const approveTx = await walletClient.writeContract({
           address: this.resolvedConfig.sourceChain.usdc,
           abi: ERC20_ABI,
           functionName: 'approve',
-          args: [this.resolvedConfig.sourceChain.tokenMessenger, amount],
+          args: [spender, amount],
           chain: {
             id: this.resolvedConfig.sourceChain.id,
             name: this.resolvedConfig.sourceChain.name,
@@ -632,8 +494,9 @@ export class PonsClient {
         });
 
         console.log(`⏳ Waiting for approval transaction: ${approveTx}`);
+        if (emitProgress) emitProgress(ExecutionStep.WAITING_APPROVAL, 'Waiting for approval confirmation...', approveTx);
         const receipt = await this.sourceClient.waitForTransactionReceipt({ hash: approveTx });
-        
+
         if (receipt.status === 'reverted') {
           throw new Error('Approval transaction reverted');
         }
@@ -648,7 +511,7 @@ export class PonsClient {
   }
 
   /**
-   * Execute CCTP burn transaction
+   * Execute CCTP burn transaction via PonsGateway
    */
   private async executeCCTPBurn(
     amount: bigint,
@@ -658,28 +521,30 @@ export class PonsClient {
     signer: any
   ): Promise<Hex> {
     try {
-      console.log('🔥 Burning USDC on source chain...');
-      console.log('📋 Burn parameters:');
+      const ponsGateway = this.resolvedConfig.sourceChain.ponsGateway;
+
+      console.log('🌉 Bridging USDC via PonsGateway...');
+      console.log('📋 Bridge parameters:');
       console.log(`   Amount: ${amount.toString()} (${(Number(amount) / 1e6).toFixed(6)} USDC)`);
       console.log(`   Destination Domain: ${this.resolvedConfig.destinationChain.domain}`);
       console.log(`   Mint Recipient: ${mintRecipient}`);
+      console.log(`   PonsGateway: ${ponsGateway}`);
 
-      const walletClient = signer.account 
-        ? signer 
+      const walletClient = signer.account
+        ? signer
         : createWalletClient({
-            transport: http(this.resolvedConfig.sourceChain.rpcUrl),
-          });
+          transport: http(this.resolvedConfig.sourceChain.rpcUrl),
+        });
 
       const txHash = await walletClient.writeContract({
-        address: this.resolvedConfig.sourceChain.tokenMessenger,
-        abi: TOKEN_MESSENGER_ABI,
-        functionName: 'depositForBurnWithHook',
+        address: ponsGateway,
+        abi: PONS_GATEWAY_ABI,
+        functionName: 'bridge',
         args: [
           amount,
           this.resolvedConfig.destinationChain.domain,
           addressToBytes32(mintRecipient),
-          this.resolvedConfig.sourceChain.usdc,
-          '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+          '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // destinationCaller
           maxFee,
           1000, // minFinalityThreshold
           hookData,
@@ -688,23 +553,21 @@ export class PonsClient {
           id: this.resolvedConfig.sourceChain.id,
           name: this.resolvedConfig.sourceChain.name,
         } as any,
-        // Explicit gas limit to avoid estimation issues with large hookData
-        // Network cap is 16,777,216 - using 1.5M which is plenty for CCTP burns
         gas: 1_500_000n,
       });
 
-      console.log(`⏳ Waiting for burn transaction: ${txHash}`);
+      console.log(`⏳ Waiting for bridge transaction: ${txHash}`);
       const receipt = await this.sourceClient.waitForTransactionReceipt({ hash: txHash });
-      
+
       if (receipt.status === 'reverted') {
-        throw new Error('Burn transaction reverted');
+        throw new Error('Bridge transaction reverted');
       }
-      
-      console.log('✅ USDC burned:', txHash);
+
+      console.log('✅ Bridge initiated via PonsGateway:', txHash);
       return txHash;
     } catch (error) {
-      console.error('❌ Burn failed with error:', error);
-      throw new Error(`Failed to burn USDC: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('❌ Bridge failed with error:', error);
+      throw new Error(`Failed to bridge USDC: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -724,7 +587,7 @@ export class PonsClient {
     hookData: Hex,
     salt: bigint = 0n
   ): Promise<void> {
-    if (!this.gatewayClient && !this.wakuManager && !this.wakuRestManager) {
+    if (!this.gatewayClient) {
       return;
     }
 
@@ -795,14 +658,10 @@ export class PonsClient {
       console.log(`   Fees: ${(Number(action.feeConfig.indexerFee) / 1e6).toFixed(6)} + ${(Number(action.feeConfig.resolverFee) / 1e6).toFixed(6)} USDC`);
       console.log(`   🔒 Includes trustless validation proofs`);
 
-      if (this.useGateway && this.gatewayClient) {
+      if (this.gatewayClient) {
         await this.gatewayClient.announce(announcement, this.resolvedConfig.destinationChain.id);
-      } else if (this.useWakuPeer && this.wakuManager) {
-        await this.wakuManager.announceTransfer(announcement, this.resolvedConfig.destinationChain.id);
-      } else if (this.wakuRestManager) {
-        await this.wakuRestManager.announceTransfer(announcement, this.resolvedConfig.destinationChain.id);
       }
-      
+
       console.log('✅ Announcement sent');
     } catch (error) {
       console.error('Failed to announce transfer:', error);
@@ -822,9 +681,7 @@ export class PonsClient {
       smartAccountAddress,
       nonce,
       this.resolvedConfig.sourceChain,
-      this.resolvedConfig.destinationChain,
-      this.wakuManager,
-      this.wakuEnabled
+      this.resolvedConfig.destinationChain
     );
 
     tracker.start();
@@ -838,19 +695,8 @@ export class PonsClient {
     if (this.gatewayClient) {
       await this.gatewayClient.stop();
     }
-    if (this.wakuManager) {
-      await this.wakuManager.stop();
-    }
-    if (this.wakuRestManager) {
-      await this.wakuRestManager.stop();
-    }
   }
 
   // Getters for advanced usage
   getGatewayClient(): PonsGatewayClient | undefined { return this.gatewayClient; }
-  getWakuManager(): WakuManager | undefined { return this.wakuManager; }
-  getWakuRestManager(): WakuRestManager | undefined { return this.wakuRestManager; }
-  isUsingGateway(): boolean { return this.useGateway; }
-  isUsingWakuPeer(): boolean { return this.useWakuPeer; }
-  isWakuEnabled(): boolean { return this.wakuEnabled; }
 }

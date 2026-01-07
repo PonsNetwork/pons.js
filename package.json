@@ -35,6 +35,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./widget": {
+      "types": "./dist/widget/index.d.ts",
+      "import": "./dist/widget/index.js",
+      "require": "./dist/widget/index.cjs"
     }
   },
   "files": [
@@ -44,19 +49,15 @@
   "scripts": {
     "build": "tsup && tsc -p tsconfig.build.json",
     "dev": "tsup --watch",
-    "proto:generate": "protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/waku/generated --ts_proto_opt=esModuleInterop=true,outputEncodeMethods=true,outputJsonMethods=true src/waku/messages.proto",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@waku/interfaces": "^0.0.33",
-    "@waku/sdk": "^0.0.34",
     "eventemitter3": "^5.0.1",
     "viem": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.1",
-    "ts-proto": "^1.181.2",
     "tsup": "^8.3.5",
     "typescript": "^5.8.0"
   },

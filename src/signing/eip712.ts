@@ -2,11 +2,17 @@ import type { Address, Hex } from 'viem';
 import type { IAction, WalletSigner, FundingConfig, Permit2Setup } from '../types.js';
 
 /**
- * Pons SDK EIP-712 Signing v2.0
- * 
+ * Pons SDK EIP-712 Signing v3.0
+ *
+ * V3: Supports cross-chain signatures (sourceChainId, targetChainId)
+ *     - User signs on source chain (their current network)
+ *     - Action executes on target chain (destination)
+ *     - No MetaMask network switching required!
+ *
  * V2: Supports batch actions (arrays of targets/values/callDatas)
- * 
+ *
  * Single, unified signing function that supports all action features:
+ * - Cross-chain signatures (sign on chain A, execute on chain B)
  * - Batch actions (1 to N contract calls)
  * - Permit2 token approvals
  * - Resolver funding (ETH and tokens)
@@ -22,14 +28,20 @@ export interface EIP712Domain {
   verifyingContract: Address;
 }
 
+/**
+ * Build EIP-712 domain separator
+ * @param sourceChainId The chain where user is signing (their current network)
+ *                      This allows signing on one chain for execution on another
+ * @param smartAccountAddress The user's smart account address (same on all chains via CREATE2)
+ */
 export function buildDomainSeparator(
-  chainId: number,
+  sourceChainId: number,
   smartAccountAddress: Address
 ): EIP712Domain {
   return {
     name: 'PonsSmartAccount',
     version: '1',
-    chainId,
+    chainId: sourceChainId,
     verifyingContract: smartAccountAddress,
   };
 }
@@ -38,11 +50,13 @@ export function buildDomainSeparator(
 
 /**
  * EIP-712 types using nested structs
- * V2: Updated for batch actions (arrays)
+ * V3: Updated for cross-chain signatures (sourceChainId, targetChainId)
  * Matches SmartAccount.sol type hashes
  */
 const ACTION_TYPES = {
   Action: [
+    { name: 'sourceChainId', type: 'uint256' },
+    { name: 'targetChainId', type: 'uint256' },
     { name: 'targets', type: 'address[]' },
     { name: 'values', type: 'uint256[]' },
     { name: 'callDatas', type: 'bytes[]' },
@@ -75,32 +89,40 @@ const ACTION_TYPES = {
 
 /**
  * Sign a Pons action with EIP-712
- * 
- * V2: Supports batch actions with arrays
- * 
+ *
+ * V3: Supports cross-chain signatures
+ *     - sourceChainId: chain where user is signing (from action)
+ *     - targetChainId: chain where action will execute (from action)
+ *     - User stays on their current network, no MetaMask switching required!
+ *
  * This single function handles all action types:
+ * - Cross-chain signatures (sign on chain A, execute on chain B)
  * - Single action (arrays of length 1)
  * - Batch actions (arrays of length N)
  * - Actions with Permit2
  * - Actions requiring resolver funding
  * - Custom fee configurations
- * 
- * @param action The complete action to sign
+ *
+ * @param action The complete action to sign (includes sourceChainId and targetChainId)
  * @param smartAccountAddress The user's smart account address
- * @param chainId The destination chain ID
  * @param signer The wallet signer
  * @returns The EIP-712 signature
  */
 export async function signAction(
   action: IAction,
   smartAccountAddress: Address,
-  chainId: number,
   signer: WalletSigner
 ): Promise<Hex> {
-  const domain = buildDomainSeparator(chainId, smartAccountAddress);
+  // Use sourceChainId (user's current chain) for domain separator
+  // This allows signing on one chain for execution on another
+  const domain = buildDomainSeparator(Number(action.sourceChainId), smartAccountAddress);
 
-  // Build message with nested structs (matches SmartAccount.sol v2)
+  // Build message with nested structs (matches SmartAccount.sol v3)
   const message = {
+    // Cross-chain signature fields
+    sourceChainId: action.sourceChainId,
+    targetChainId: action.targetChainId,
+    // Core action fields
     targets: action.targets,
     values: action.values,
     callDatas: action.callDatas,

@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/widget/index.ts'],
   format: ['esm', 'cjs'],
   dts: false, // Using tsc for declarations instead (tsup dts hangs)
   sourcemap: true,

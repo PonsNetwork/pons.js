@@ -2,20 +2,20 @@ import type { TransferAnnouncement } from '../types.js';
 
 /**
  * Pons Gateway Client
- * 
- * Communicates with Pons Gateway servers (gateway.pons.sh or custom)
- * instead of raw Waku REST APIs. This provides:
- * 
+ *
+ * Communicates with Pons Gateway servers (gateway.pons.sh or custom).
+ * This provides:
+ *
  * - Simpler API
  * - Better error handling
- * - Connection pooling (Cloudflare)
- * - Rate limiting (Cloudflare)
- * - SSL termination (Cloudflare)
- * 
+ * - Connection pooling
+ * - Rate limiting
+ * - SSL termination
+ *
  * @example
  * const gateway = new PonsGatewayClient('https://gateway.pons.sh');
  * await gateway.announce(transferData, destinationChainId);
- * 
+ *
  * @example
  * // Custom gateway
  * const gateway = new PonsGatewayClient({
@@ -56,7 +56,7 @@ export interface NodeInfoResponse {
   version: string;
   uptime: number;
   supportedChains: number[];
-  wakuConnected: boolean;
+  connected: boolean;
 }
 
 export interface TransfersResponse {
@@ -68,9 +68,8 @@ export interface ChainConfigResponse {
   id: number;
   name: string;
   domain: number;
-  tokenMessenger: string;
-  messageTransmitter: string;
   usdc: string;
+  ponsGateway: string;
   factory: string | null;
 }
 

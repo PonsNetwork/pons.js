@@ -12,32 +12,33 @@ export type {
   Permit2Setup,
   FundingConfig,
   ActionOptions,
-  
+
   // Chain config
   ChainConfig,
-  
+
   // Transfer types
   CCTPTransferParams,
   TransferResult,
   TransferStatusUpdate,
-  
+  ExecutionProgress,
+
   // Client config - Simple & Full
   SimplePonsConfig,
   PonsClientConfig,
   PonsConfig,
   WalletSigner,
-  
-  // Waku types
+
+  // Network message types
   TransferAnnouncement,
   MintCompleted,
   ActionExecuted,
   ValidationProofs,
-  
+
   // Hook data
   HookData,
 } from './types.js';
 
-export { TransferStatus, isSimpleConfig } from './types.js';
+export { TransferStatus, isSimpleConfig, ExecutionStep } from './types.js';
 
 // Actions
 export { ActionBuilder, validateAction } from './actions/index.js';
@@ -67,12 +68,12 @@ export {
   calculateFeesForBurn,
   calculateFeesSync,
   DEFAULT_FEES,
-  
+
   // Reverse calculations for dynamic actions (NFTs, games, etc.)
   calculateBurnForAction,
   calculateFeesForActionType,
   validateActionFeasibility,
-  
+
   // Lower-level functions
   fetchCCTPFees,
   calculateCCTPFee,
@@ -82,17 +83,14 @@ export {
   calculateMinExpectedAmount,
   calculateMinBurnAmount,
   getFeeBreakdown,
-  
+
   // Types
   type CCTPFeeConfig,
   type CCTPFeesResponse,
   type PonsFeeBreakdown,
 } from './cctp/fees.js';
 
-// Waku (legacy - prefer PonsGatewayClient)
-export { WakuManager, WakuRestManager } from './waku/index.js';
-
-// Pons Gateway (recommended)
+// Pons Gateway
 export { PonsGatewayClient } from './gateway/index.js';
 export type {
   PonsGatewayClientConfig,
@@ -108,11 +106,11 @@ export type {
 export { TransferTracker } from './polling/index.js';
 
 // Config & Chains
-export { 
+export {
   Chain,
-  arcTestnet, 
-  sepolia, 
-  ethereum, 
+  arcTestnet,
+  sepolia,
+  ethereum,
   createChainConfig,
   getChain,
   getFactory,
@@ -123,15 +121,13 @@ export {
   type SupportedChain,
   type FullChainConfig,
 } from './config/chains.js';
-export { 
-  CCTP_DOMAINS, 
-  CIRCLE_API, 
-  WAKU_TOPICS, 
+export {
+  CCTP_DOMAINS,
+  CIRCLE_API,
   DEFAULTS,
-  WAKU_CONFIG,
   PONS_GATEWAY,
-  getContentTopic,
-  getPubsubTopic,
+  PONS_GATEWAY_ABI,
+  ERC20_ABI,
 } from './config/constants.js';
 
 // Utils
@@ -157,3 +153,19 @@ export {
   DEFAULT_INIT_CODE_HASH,
   type Create2Params,
 } from './utils/create2.js';
+
+// Widget - Web Component for dApp integration
+// Exported via separate entry point: import { PonsWidget } from '@pons/sdk/widget'
+// export { PonsWidget } from './widget/index.js';
+
+// DEX Aggregators
+export * as Aggregators from './aggregators/index.js';
+export { KyberSwap } from './aggregators/kyberswap.js';
+export type {
+  SwapQuoteParams,
+  SwapQuoteResult,
+  BuildSwapParams,
+  SwapDataResult,
+  RouteSummary,
+  RoutePool,
+} from './aggregators/kyberswap.js';

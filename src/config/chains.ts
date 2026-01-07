@@ -28,7 +28,7 @@ export type ChainName = typeof Chain[keyof typeof Chain];
 /**
  * Supported chain names for easy reference
  */
-export type SupportedChain = 
+export type SupportedChain =
   | ChainName
   | number; // Chain ID
 
@@ -48,10 +48,9 @@ export const arcTestnet: FullChainConfig = {
   name: 'Arc Testnet',
   rpcUrl: 'https://rpc.testnet.arc.network',
   domain: 26, // CCTP domain for Arc Testnet
-  tokenMessenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA' as Address,
-  messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as Address,
   usdc: '0x3600000000000000000000000000000000000000' as Address,
-  factory: '0x8654abbd9ef1767f20e899348df05c09ecd0d070' as Address, // Beacon Proxy Factory
+  ponsGateway: '0x92E83dC0CA01c4E52C12605f90B72CD1828f46E3' as Address, // Same address via CREATE2
+  factory: '0x62D68adB9d0d3eE6F40A84B0Bd4baC7Cd15a08c4' as Address, // Beacon Proxy Factory
   nativeCurrency: {
     name: 'USDC',
     symbol: 'USDC',
@@ -67,11 +66,10 @@ export const sepolia: FullChainConfig = {
   id: 11155111,
   name: 'Sepolia',
   rpcUrl: 'https://sepolia.drpc.org',
-  domain: 0,
-  tokenMessenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA' as Address,
-  messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as Address,
+  domain: 0, // CCTP domain for Sepolia
   usdc: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
-  // factory: undefined - not yet deployed
+  ponsGateway: '0x92E83dC0CA01c4E52C12605f90B72CD1828f46E3' as Address,
+  factory: '0x62D68adB9d0d3eE6F40A84B0Bd4baC7Cd15a08c4' as Address,
   nativeCurrency: {
     name: 'Ether',
     symbol: 'ETH',
@@ -81,16 +79,15 @@ export const sepolia: FullChainConfig = {
 };
 
 /**
- * Ethereum Mainnet configuration
+ * Ethereum Mainnet configuration (PonsGateway not yet deployed)
  */
 export const ethereum: FullChainConfig = {
   id: 1,
   name: 'Ethereum',
   rpcUrl: 'https://eth.llamarpc.com',
-  domain: 0,
-  tokenMessenger: '0xBd3fa81B58Ba92a82136038B25aDec7066af3155' as Address,
-  messageTransmitter: '0x0a992d191DEeC32aFe36203Ad87D7d289a738F81' as Address,
+  domain: 0, // CCTP domain for Ethereum
   usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address,
+  ponsGateway: '0x0000000000000000000000000000000000000000' as Address, // Not yet deployed
   // factory: undefined - not yet deployed
   nativeCurrency: {
     name: 'Ether',
@@ -123,14 +120,14 @@ export const CHAINS: Record<string, FullChainConfig> = {
 export function getChain(chain: SupportedChain): FullChainConfig {
   const key = typeof chain === 'number' ? String(chain) : chain;
   const config = CHAINS[key];
-  
+
   if (!config) {
     throw new Error(
       `Unsupported chain: ${chain}. ` +
       `Supported chains: ${Object.keys(CHAINS).filter(k => isNaN(Number(k))).join(', ')}`
     );
   }
-  
+
   return config;
 }
 

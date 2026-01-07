@@ -18,6 +18,29 @@ export enum TransferStatus {
   FAILED = 'failed',
 }
 
+/**
+ * Execution steps for progress tracking
+ */
+export enum ExecutionStep {
+  BUILDING = 'building',
+  SIGNING = 'signing',
+  APPROVING_USDC = 'approving_usdc',
+  WAITING_APPROVAL = 'waiting_approval',
+  EXECUTING_BRIDGE = 'executing_bridge',
+  WAITING_BRIDGE = 'waiting_bridge',
+  POOL_CHECK = 'pool_check',
+  COMPLETE = 'complete'
+}
+
+/**
+ * Progress update payload
+ */
+export interface ExecutionProgress {
+  step: ExecutionStep;
+  txHash?: string;
+  message?: string;
+}
+
 // ============ Core Types ============
 
 /**
@@ -52,27 +75,32 @@ export interface FundingConfig {
 
 /**
  * Core action interface - the building block of Pons actions
- * V2: Supports batch actions via arrays (single action = arrays of length 1)
+ * V3: Supports cross-chain signatures (sourceChainId, targetChainId)
+ *     User can sign on source chain for execution on target chain
  */
 export interface IAction {
+  // Cross-chain signature support
+  sourceChainId: bigint;  // Chain where user signed (for domain reconstruction)
+  targetChainId: bigint;  // Chain where action should execute
+
   // Core execution (arrays for batch support)
   targets: Address[];
   callDatas: Hex[];
   values: bigint[];
-  
+
   // Timing
   nonce: bigint;
   deadline: bigint;
-  
+
   // Bridged amount
   expectedAmount: bigint;
-  
+
   // Fees
   feeConfig: FeeConfig;
-  
+
   // Permit2 setup (optional)
   permit2Setup: Permit2Setup[];
-  
+
   // Resolver funding (optional)
   funding: FundingConfig;
 }
@@ -105,18 +133,18 @@ export interface ActionOptions {
   target?: Address;
   callData?: Hex;
   value?: bigint;
-  
+
   // Batch actions (new format - takes precedence if provided)
   targets?: Address[];
   callDatas?: Hex[];
   values?: bigint[];
-  
+
   // Fees (nested struct)
   feeConfig: FeeConfig;
-  
+
   // Permit2 (optional)
   permit2Setup?: Permit2Setup[];
-  
+
   // Resolver funding (optional, nested struct)
   funding?: FundingConfig;
 }
@@ -128,9 +156,9 @@ export interface ChainConfig {
   name: string;
   rpcUrl: string;
   domain: number; // CCTP domain
-  tokenMessenger: Address;
-  messageTransmitter: Address;
   usdc: Address;
+  /** PonsGateway contract address for bridging */
+  ponsGateway: Address;
   nativeCurrency: {
     name: string;
     symbol: string;
@@ -199,19 +227,19 @@ export interface TransferStatusUpdate {
 export interface SimplePonsConfig {
   /** Source chain - where users burn USDC */
   from: 'sepolia' | 'arc-testnet' | 'ethereum' | number;
-  
+
   /** Destination chain - where SmartAccount receives */
   to: 'sepolia' | 'arc-testnet' | 'ethereum' | number;
-  
+
   /** Optional: Custom RPC URL for source chain */
   sourceRpcUrl?: string;
-  
+
   /** Optional: Custom RPC URL for destination chain */
   destinationRpcUrl?: string;
-  
+
   /** Optional: Override factory address (uses default for chain if not provided) */
   factoryAddress?: Address;
-  
+
   /** Optional: Custom gateway URL (default: gateway.pons.sh) */
   gatewayUrl?: string;
 }
@@ -224,23 +252,9 @@ export interface PonsClientConfig {
   destinationChain: ChainConfig;
   /** Factory address on destination chain (defaults based on chain) */
   factoryAddress?: Address;
-  
-  // Pons Gateway URL (recommended - default: gateway.pons.sh)
+
+  /** Pons Gateway URL (default: gateway.pons.sh) */
   gatewayUrl?: string;
-  
-  // Pons Relay URL (direct connection - prefer gatewayUrl)
-  ponsRelayUrl?: string;
-  
-  // Connection mode: Direct peer (advanced - takes precedence over REST)
-  ponsPeerAddress?: string;
-  ponsBootstrapPeers?: string[];
-  ponsWsPort?: number;
-  ponsClusterId?: number;
-  ponsShard?: number;
-  
-  // Content topic customization
-  contentTopicPrefix?: string;
-  contentTopicSuffix?: string;
 }
 
 /**
@@ -276,7 +290,7 @@ export interface WalletSigner {
   signMessage?(args: { message: string | Uint8Array }): Promise<Hex>;
 }
 
-// ============ Waku Message Types ============
+// ============ Network Message Types ============
 
 /**
  * Validation proofs for trustless verification
@@ -287,7 +301,7 @@ export interface ValidationProofs {
    * User's EIP-712 signature over the intent (from hookData)
    */
   userSignature: string;
-  
+
   /**
    * CREATE2 parameters for address verification
    */
@@ -300,8 +314,8 @@ export interface ValidationProofs {
 }
 
 /**
- * Transfer announcement broadcast to Waku network
- * Now includes validation proofs for trustless verification
+ * Transfer announcement broadcast to Pons network
+ * Includes validation proofs for trustless verification
  */
 export interface TransferAnnouncement {
   version: string;
@@ -317,14 +331,14 @@ export interface TransferAnnouncement {
   deadline: number;
   messageHash?: string;
   hookData: Uint8Array;
-  
+
   // Fee config
   feeConfig: {
     paymentToken: string;
     indexerFee: string;
     resolverFee: string;
   };
-  
+
   // Funding config
   fundingConfig?: {
     ethNeeded: string;
@@ -332,7 +346,7 @@ export interface TransferAnnouncement {
     tokenAmounts: string[];
     maxReimbursement: string;
   };
-  
+
   // Permit2 setup
   permit2Setup?: Array<{
     token: string;
@@ -394,13 +408,13 @@ export interface HookData {
   deadline: bigint;
   expectedAmount: bigint;
   signature: Hex;
-  
+
   // Fees
   feeConfig: FeeConfig;
-  
+
   // Permit2 setup
   permit2Setup: Permit2Setup[];
-  
+
   // Funding
   funding: FundingConfig;
 }

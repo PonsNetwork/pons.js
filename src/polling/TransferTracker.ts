@@ -1,31 +1,27 @@
 import EventEmitter from 'eventemitter3';
 import type { Address, Hex, PublicClient } from 'viem';
 import { createPublicClient, http } from 'viem';
-import { TransferStatus, type TransferStatusUpdate, type ChainConfig, type MintCompleted, type ActionExecuted } from '../types.js';
-import { WakuManager } from '../waku/WakuManager.js';
+import { TransferStatus, type TransferStatusUpdate, type ChainConfig } from '../types.js';
 import { DEFAULTS, CIRCLE_API, SMART_ACCOUNT_ABI } from '../config/constants.js';
 
 /**
- * Transfer tracker - polls chain and Waku for transfer status
+ * Transfer tracker - polls chain for transfer status
  */
 export class TransferTracker extends EventEmitter {
   private status: TransferStatus = TransferStatus.INITIATED;
   private polling: boolean = false;
   private pollingInterval?: NodeJS.Timeout;
-  private wakuUnsubscribe?: () => void;
   private destinationClient: PublicClient;
-  
+
   constructor(
     private sourceTxHash: Hex,
     private smartAccountAddress: Address,
     private nonce: bigint,
     private sourceChain: ChainConfig,
-    private _destinationChain: ChainConfig,
-    private wakuManager?: WakuManager,
-    private enableWakuPolling: boolean = true
+    private _destinationChain: ChainConfig
   ) {
     super();
-    
+
     this.destinationClient = createPublicClient({
       transport: http(this._destinationChain.rpcUrl),
     });
@@ -44,11 +40,6 @@ export class TransferTracker extends EventEmitter {
 
     // Start chain polling
     this.startChainPolling();
-
-    // Start Waku polling if enabled
-    if (this.enableWakuPolling && this.wakuManager) {
-      await this.startWakuPolling();
-    }
   }
 
   /**
@@ -56,15 +47,10 @@ export class TransferTracker extends EventEmitter {
    */
   stop(): void {
     this.polling = false;
-    
+
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = undefined;
-    }
-
-    if (this.wakuUnsubscribe) {
-      this.wakuUnsubscribe();
-      this.wakuUnsubscribe = undefined;
     }
   }
 
@@ -99,8 +85,7 @@ export class TransferTracker extends EventEmitter {
         if (hasAttestation) {
           this.emitStatus(TransferStatus.ATTESTED);
           // After attestation, mark as announced (ready for indexers/resolvers)
-          // In production, this would be set after confirming Waku broadcast
-          // For now, we assume announcement happened if Waku was enabled
+          // In production, this would be set after confirming network broadcast
           setTimeout(() => {
             if (this.status === TransferStatus.ATTESTED) {
               this.emitStatus(TransferStatus.ANNOUNCED);
@@ -209,57 +194,6 @@ export class TransferTracker extends EventEmitter {
       return flow as any;
     } catch (error) {
       return null;
-    }
-  }
-
-  /**
-   * Start Waku polling
-   */
-  private async startWakuPolling(): Promise<void> {
-    if (!this.wakuManager) {
-      return;
-    }
-
-    try {
-      const destinationChainId = this._destinationChain.id;
-      
-      // Subscribe to mint events
-      const mintUnsub = await this.wakuManager.subscribeMintEvents((data: MintCompleted) => {
-        if (
-          data.smartAccountAddress.toLowerCase() === this.smartAccountAddress.toLowerCase() &&
-          data.nonce === this.nonce.toString()
-        ) {
-          this.emitStatus(TransferStatus.MINTED, {
-            amount: data.amount,
-            indexer: data.indexerAddress,
-            mintTxHash: data.mintTxHash,
-          });
-        }
-      }, destinationChainId);
-
-      // Subscribe to execution events
-      const execUnsub = await this.wakuManager.subscribeExecutionEvents((data: ActionExecuted) => {
-        if (
-          data.smartAccountAddress.toLowerCase() === this.smartAccountAddress.toLowerCase() &&
-          data.nonce === this.nonce.toString() &&
-          data.success
-        ) {
-          this.emitStatus(TransferStatus.EXECUTED, {
-            executor: data.resolverAddress,
-            executionTxHash: data.executionTxHash,
-            gasUsed: data.gasUsed,
-          });
-          this.stop(); // Stop polling once executed
-        }
-      }, destinationChainId);
-
-      // Store cleanup function
-      this.wakuUnsubscribe = () => {
-        mintUnsub();
-        execUnsub();
-      };
-    } catch (error) {
-      console.error('Error starting Waku polling:', error);
     }
   }
 
