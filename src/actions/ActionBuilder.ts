@@ -295,7 +295,7 @@ export class ActionBuilder {
     } else if (options.target) {
       // Single action format (legacy)
       const isNoAction = options.target === '0x0000000000000000000000000000000000000000' &&
-                         (!options.callData || options.callData === '0x');
+        (!options.callData || options.callData === '0x');
 
       if (isNoAction) {
         builder.noAction();
@@ -307,8 +307,10 @@ export class ActionBuilder {
       builder.noAction();
     }
 
+    // paymentToken should be auto-filled by PonsClient, but provide fallback for type safety
+    const paymentToken = options.feeConfig.paymentToken || '0x0000000000000000000000000000000000000000' as `0x${string}`;
     builder.withFees(
-      options.feeConfig.paymentToken,
+      paymentToken,
       options.feeConfig.indexerFee,
       options.feeConfig.resolverFee
     );
@@ -345,10 +347,10 @@ export class ActionBuilder {
   ): ActionOptions {
     // Encode transfer(address,uint256)
     const transferSelector = '0xa9059cbb';
-    const callData = (transferSelector + 
-      recipient.slice(2).padStart(64, '0') + 
+    const callData = (transferSelector +
+      recipient.slice(2).padStart(64, '0') +
       amount.toString(16).padStart(64, '0')) as Hex;
-    
+
     return {
       target: usdcAddress,
       callData,
@@ -394,19 +396,19 @@ export class ActionBuilder {
  */
 export function validateAction(action: IAction, allowNoAction: boolean = true, protocolFeeBps: bigint = 10n): void {
   // Check if this is a no-action (simple bridge)
-  const isNoAction = action.targets.length === 0 || 
-    (action.targets.length === 1 && 
-     action.targets[0] === '0x0000000000000000000000000000000000000000' && 
-     (!action.callDatas[0] || action.callDatas[0] === '0x'));
-  
+  const isNoAction = action.targets.length === 0 ||
+    (action.targets.length === 1 &&
+      action.targets[0] === '0x0000000000000000000000000000000000000000' &&
+      (!action.callDatas[0] || action.callDatas[0] === '0x'));
+
   // Only validate targets/callDatas if not a no-action
   if (!isNoAction) {
     if (action.targets.length === 0) {
       throw new Error('Invalid action: no targets specified');
     }
 
-    if (action.targets.length !== action.callDatas.length || 
-        action.targets.length !== action.values.length) {
+    if (action.targets.length !== action.callDatas.length ||
+      action.targets.length !== action.values.length) {
       throw new Error('Invalid action: arrays length mismatch');
     }
 
@@ -437,7 +439,7 @@ export function validateAction(action: IAction, allowNoAction: boolean = true, p
 
   // Calculate protocol fee (percentage of expectedAmount)
   const protocolFee = (action.expectedAmount * protocolFeeBps) / 10000n;
-  
+
   // Validate that expectedAmount covers all fees and costs
   const totalFees = action.feeConfig.indexerFee + action.feeConfig.resolverFee + action.funding.maxReimbursement + protocolFee;
   if (action.expectedAmount < totalFees) {

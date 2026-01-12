@@ -33,6 +33,43 @@ export enum ExecutionStep {
 }
 
 /**
+ * Standard ERC-4337 UserOperation struct
+ */
+/**
+ * Standard ERC-4337 UserOperation struct (Unpacked/Internal)
+ * Compatible with v0.6 logic but used internally before packing for v0.7
+ */
+export interface UserOperation {
+  sender: Address;
+  nonce: bigint;
+  initCode: Hex;
+  callData: Hex;
+  callGasLimit: bigint;
+  verificationGasLimit: bigint;
+  preVerificationGas: bigint;
+  maxFeePerGas: bigint;
+  maxPriorityFeePerGas: bigint;
+  paymasterAndData: Hex;
+  signature: Hex;
+}
+
+/**
+ * Packed UserOperation for EntryPoint v0.7
+ * This is the format required by standard Bundlers for v0.7
+ */
+export interface PackedUserOperation {
+  sender: Address;
+  nonce: bigint;
+  initCode: Hex;
+  callData: Hex;
+  accountGasLimits: Hex; // packed (verificationGasLimit << 128 | callGasLimit)
+  preVerificationGas: bigint;
+  gasFees: Hex; // packed (maxPriorityFeePerGas << 128 | maxFeePerGas)
+  paymasterAndData: Hex;
+  signature: Hex;
+}
+
+/**
  * Progress update payload
  */
 export interface ExecutionProgress {
@@ -47,7 +84,7 @@ export interface ExecutionProgress {
  * Fee configuration for indexer and resolver payments
  */
 export interface FeeConfig {
-  paymentToken: Address;   // Token to pay fees in (usually USDC)
+  paymentToken?: Address;  // Optional: Token to pay fees in (auto-filled from destination chain USDC)
   indexerFee: bigint;      // Fixed amount for indexer
   resolverFee: bigint;     // Fixed amount for resolver
 }
@@ -139,8 +176,8 @@ export interface ActionOptions {
   callDatas?: Hex[];
   values?: bigint[];
 
-  // Fees (nested struct)
-  feeConfig: FeeConfig;
+  // Fees (nested struct - paymentToken optional, auto-filled from destination chain)
+  feeConfig: Omit<FeeConfig, 'paymentToken'> & { paymentToken?: Address };
 
   // Permit2 (optional)
   permit2Setup?: Permit2Setup[];
@@ -165,6 +202,8 @@ export interface ChainConfig {
     decimals: number;
   };
   blockExplorerUrl?: string;
+  bundlerUrl?: string;
+  paymasterUrl?: string;
 }
 
 // ============ Transfer Types ============
@@ -242,6 +281,12 @@ export interface SimplePonsConfig {
 
   /** Optional: Custom gateway URL (default: gateway.pons.sh) */
   gatewayUrl?: string;
+
+  /** Optional: Bundler URL for ERC-4337 operations */
+  bundlerUrl?: string;
+
+  /** Optional: Paymaster URL for gas sponsorship */
+  paymasterUrl?: string;
 }
 
 /**
@@ -255,6 +300,15 @@ export interface PonsClientConfig {
 
   /** Pons Gateway URL (default: gateway.pons.sh) */
   gatewayUrl?: string;
+
+  /** Bundler URL */
+  bundlerUrl?: string;
+
+  /** Paymaster URL */
+  paymasterUrl?: string;
+
+  /** Optional: Smart Account Provider (Custom implementation) */
+  accountProvider?: any;
 }
 
 /**

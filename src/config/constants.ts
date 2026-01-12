@@ -27,14 +27,14 @@ export const PONS_CONTRACTS = {
   // Arc Testnet (Chain ID: 5042002)
   ARC_TESTNET: {
     CHAIN_ID: 5042002,
-    FACTORY: '0xd1164a315228b0f77b3cd2a408ad5136c50ca389' as const,
+    FACTORY: '0x62D68adB9d0d3eE6F40A84B0Bd4baC7Cd15a08c4' as const,
     USDC: '0x3600000000000000000000000000000000000000' as const,
     GATEWAY: null as unknown as `0x${string}`, // To be deployed
   },
   // Sepolia (Chain ID: 11155111)
   SEPOLIA: {
     CHAIN_ID: 11155111,
-    FACTORY: '0xCd25e8F776E3937BBc29b20d900d0cC2cab3552E' as const,
+    FACTORY: '0x62D68adB9d0d3eE6F40A84B0Bd4baC7Cd15a08c4' as const,
     USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as const,
     GATEWAY: '0x92E83dC0CA01c4E52C12605f90B72CD1828f46E3' as const,
   },
@@ -60,20 +60,20 @@ export function getDefaultFactory(chainId: number): `0x${string}` | null {
 export const PONS_GATEWAY = {
   // Default Pons Gateway endpoint
   DEFAULT_URL: 'https://gateway.pons.sh',
-  
+
   // Fallback endpoints (for redundancy)
   FALLBACK_URLS: [
     'https://gateway.pons.sh',
     'https://gateway-eu.pons.sh',
     'https://gateway-us.pons.sh',
   ],
-  
+
   // Request timeout (ms)
   TIMEOUT: 30000,
-  
+
   // Retry count
   RETRIES: 3,
-  
+
   // Polling interval (ms)
   POLL_INTERVAL: 3000,
 } as const;

@@ -13,5 +13,6 @@
  */
 
 export { PonsWidget } from './PonsWidget.js';
+export { PonsAccountModal } from './PonsAccountModal.js';
 export { getWidgetStyles, getWidgetHTML } from './styles.js';
 

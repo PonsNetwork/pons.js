@@ -5,7 +5,7 @@
 
 export function getWidgetStyles(theme: 'light' | 'dark'): string {
   const isDark = theme === 'dark';
-  
+
   const colors = isDark ? {
     bg: '#1a1b23',
     bgSecondary: '#252631',
@@ -98,6 +98,30 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
     .chain-name {
       font-weight: 600;
       font-size: 14px;
+    }
+
+    .chain-select {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: ${colors.text};
+      font-weight: 600;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
+      padding: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right center;
+      background-size: 16px;
+      padding-right: 20px;
+    }
+
+    .chain-select option {
+      background: ${colors.bgSecondary};
+      color: ${colors.text};
     }
 
     .chain-arrow {
@@ -243,11 +267,180 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: ${colors.bg};
+      border: 1px solid ${colors.border};
+      border-radius: 24px;
+      padding: 32px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      transform: translateY(20px);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-overlay.open .modal-content {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .modal-title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: ${colors.textSecondary};
+      cursor: pointer;
+      font-size: 24px;
+      padding: 4px;
+      line-height: 1;
+    }
+
+    .close-btn:hover {
+      color: ${colors.text};
+    }
+
+    .account-section {
+      background: ${colors.bgSecondary};
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section-label {
+      font-size: 12px;
+      color: ${colors.textSecondary};
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .address-display {
+      font-family: monospace;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .copy-icon {
+      cursor: pointer;
+      font-size: 14px;
+      color: ${colors.textSecondary};
+    }
+    .copy-icon:hover { color: ${colors.primary}; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      background: ${colors.bgSecondary};
+      padding: 4px;
+      border-radius: 12px;
+    }
+    
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: ${colors.textSecondary};
+      padding: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .tab-btn:hover {
+      color: ${colors.text};
+    }
+    
+    .tab-btn.active {
+      background: ${colors.bg};
+      color: ${colors.text};
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 12px;
+      color: ${colors.textSecondary};
+      margin-bottom: 6px;
+    }
+    
+    .form-input {
+      width: 100%;
+      background: ${colors.inputBg};
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 12px;
+      color: ${colors.text};
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    
+    .form-input:focus {
+      border-color: ${colors.primary};
+    }
+
+    .token-select {
+        appearance: none;
+        background: ${colors.inputBg};
+        border: none;
+        color: ${colors.text};
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        outline: none;
+    }
   `;
 }
 
 interface WidgetState {
   connected: boolean;
+  fundingSource: 'eoa' | 'smart-account';
   walletAddress: string | null;
   smartAccountAddress: string | null;
   sourceBalance: bigint;
@@ -327,27 +520,50 @@ export function getWidgetHTML(state: WidgetState, ctx: HTMLContext): string {
     }
   };
 
+  // Determine displayed balance based on funding source
+  const displayedBalance = state.fundingSource === 'eoa' ? state.sourceBalance : state.destBalance;
+  const balanceLabel = state.fundingSource === 'eoa' ? 'EOA Balance' : 'Smart Account';
+
   return `
     <div class="pons-widget">
       <div class="pons-header">
         <div class="pons-logo">${ponsLogo} Pons</div>
-        <div class="wallet-info">${ctx.truncateAddress(state.walletAddress!)}</div>
+        <div class="wallet-info">${ctx.truncateAddress(state.fundingSource === 'eoa' ? state.walletAddress! : state.smartAccountAddress!)}</div>
       </div>
+      
+      <!-- Wallet Toggle -->
+      <div class="tabs" style="margin-bottom: 16px;">
+        <button class="tab-btn ${state.fundingSource === 'eoa' ? 'active' : ''}" data-action="set-source-eoa">EOA Wallet</button>
+        <button class="tab-btn ${state.fundingSource === 'smart-account' ? 'active' : ''}" data-action="set-source-sa">Smart Account</button>
+      </div>
+
       <div class="chain-selector">
         <div class="chain-box">
           <div class="chain-label">From</div>
-          <div class="chain-name">${chainDisplayName(ctx.fromChain)}</div>
+          <select class="chain-select" data-type="from">
+            <option value="sepolia" ${ctx.fromChain === 'sepolia' ? 'selected' : ''}>Sepolia</option>
+            <option value="arc-testnet" ${ctx.fromChain === 'arc-testnet' ? 'selected' : ''}>Arc Testnet</option>
+            <option value="ethereum" ${ctx.fromChain === 'ethereum' ? 'selected' : ''}>Ethereum</option>
+            <option value="base" ${ctx.fromChain === 'base' ? 'selected' : ''}>Base</option>
+            <option value="arbitrum" ${ctx.fromChain === 'arbitrum' ? 'selected' : ''}>Arbitrum</option>
+          </select>
         </div>
         <div class="chain-arrow">→</div>
         <div class="chain-box">
           <div class="chain-label">To</div>
-          <div class="chain-name">${chainDisplayName(ctx.toChain)}</div>
+          <select class="chain-select" data-type="to">
+            <option value="sepolia" ${ctx.toChain === 'sepolia' ? 'selected' : ''}>Sepolia</option>
+            <option value="arc-testnet" ${ctx.toChain === 'arc-testnet' ? 'selected' : ''}>Arc Testnet</option>
+            <option value="ethereum" ${ctx.toChain === 'ethereum' ? 'selected' : ''}>Ethereum</option>
+            <option value="base" ${ctx.toChain === 'base' ? 'selected' : ''}>Base</option>
+            <option value="arbitrum" ${ctx.toChain === 'arbitrum' ? 'selected' : ''}>Arbitrum</option>
+          </select>
         </div>
       </div>
       <div class="amount-section">
         <div class="amount-header">
           <span>Amount</span>
-          <span class="balance">Balance: ${ctx.formatUSDC(state.sourceBalance)} USDC</span>
+          <span class="balance">${balanceLabel}: ${ctx.formatUSDC(displayedBalance)} USDC</span>
         </div>
         <div class="input-row">
           <input type="text" class="amount-input" placeholder="0.00" value="${state.amount}" />
@@ -356,12 +572,14 @@ export function getWidgetHTML(state: WidgetState, ctx: HTMLContext): string {
         </div>
       </div>
       <button class="transfer-btn" ${state.status !== 'idle' ? 'disabled' : ''}>
-        ${state.status === 'idle' ? '🌉 Bridge via Pons' : '<span class="loading"></span> Processing...'}
+        ${state.status === 'idle' ? (state.fundingSource === 'eoa' ? '🌉 Bridge via Pons' : '💸 Transfer from SA') : '<span class="loading"></span> Processing...'}
       </button>
       ${statusHTML()}
+      
+      <!-- Show other balance for info -->
       <div class="dest-balance">
-        <span>Smart Account Balance</span>
-        <span>${ctx.formatUSDC(state.destBalance)} USDC</span>
+        <span>${state.fundingSource === 'eoa' ? 'Smart Account' : 'EOA'} Balance</span>
+        <span>${ctx.formatUSDC(state.fundingSource === 'eoa' ? state.destBalance : state.sourceBalance)} USDC</span>
       </div>
     </div>
   `;

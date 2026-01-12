@@ -28,35 +28,37 @@ export function encodeHookData(action: IAction, signature: Hex): Hex {
       { type: 'address[]', name: 'targets' },
       { type: 'uint256[]', name: 'values' },
       { type: 'bytes[]', name: 'callDatas' },
-      
+
       // Timing
       { type: 'uint256', name: 'nonce' },
       { type: 'uint256', name: 'deadline' },
-      
+
       // Bridged amount
       { type: 'uint256', name: 'expectedAmount' },
-      
+
       // Fees
       { type: 'address', name: 'paymentToken' },
       { type: 'uint256', name: 'indexerFee' },
       { type: 'uint256', name: 'resolverFee' },
-      
+
       // Permit2 setup (as tuple array)
-      { type: 'tuple[]', name: 'permit2Setup', components: [
-        { type: 'address', name: 'token' },
-        { type: 'address', name: 'spender' },
-        { type: 'uint160', name: 'amount' },
-      ]},
-      
+      {
+        type: 'tuple[]', name: 'permit2Setup', components: [
+          { type: 'address', name: 'token' },
+          { type: 'address', name: 'spender' },
+          { type: 'uint160', name: 'amount' },
+        ]
+      },
+
       // Funding
       { type: 'uint256', name: 'ethNeeded' },
       { type: 'address[]', name: 'tokensNeeded' },
       { type: 'uint256[]', name: 'tokenAmounts' },
       { type: 'uint256', name: 'maxReimbursement' },
-      
+
       // Signature
       { type: 'bytes', name: 'signature' },
-      
+
       // Version marker (2 for v2.0 with batch support)
       { type: 'uint8', name: 'version' },
     ],
@@ -67,7 +69,7 @@ export function encodeHookData(action: IAction, signature: Hex): Hex {
       action.nonce,
       action.deadline,
       action.expectedAmount,
-      action.feeConfig.paymentToken,
+      action.feeConfig.paymentToken!, // paymentToken is filled by PonsClient before encoding
       action.feeConfig.indexerFee,
       action.feeConfig.resolverFee,
       action.permit2Setup.map(p => ({ token: p.token, spender: p.spender, amount: p.amount })),
@@ -99,11 +101,13 @@ export function decodeHookData(hookData: Hex): HookData {
       { type: 'address', name: 'paymentToken' },
       { type: 'uint256', name: 'indexerFee' },
       { type: 'uint256', name: 'resolverFee' },
-      { type: 'tuple[]', name: 'permit2Setup', components: [
-        { type: 'address', name: 'token' },
-        { type: 'address', name: 'spender' },
-        { type: 'uint160', name: 'amount' },
-      ]},
+      {
+        type: 'tuple[]', name: 'permit2Setup', components: [
+          { type: 'address', name: 'token' },
+          { type: 'address', name: 'spender' },
+          { type: 'uint160', name: 'amount' },
+        ]
+      },
       { type: 'uint256', name: 'ethNeeded' },
       { type: 'address[]', name: 'tokensNeeded' },
       { type: 'uint256[]', name: 'tokenAmounts' },
@@ -161,11 +165,13 @@ export function decodeHookDataV1(hookData: Hex): HookData {
       { type: 'address', name: 'paymentToken' },
       { type: 'uint256', name: 'indexerFee' },
       { type: 'uint256', name: 'resolverFee' },
-      { type: 'tuple[]', name: 'permit2Setup', components: [
-        { type: 'address', name: 'token' },
-        { type: 'address', name: 'spender' },
-        { type: 'uint160', name: 'amount' },
-      ]},
+      {
+        type: 'tuple[]', name: 'permit2Setup', components: [
+          { type: 'address', name: 'token' },
+          { type: 'address', name: 'spender' },
+          { type: 'uint160', name: 'amount' },
+        ]
+      },
       { type: 'uint256', name: 'ethNeeded' },
       { type: 'address[]', name: 'tokensNeeded' },
       { type: 'uint256[]', name: 'tokenAmounts' },
