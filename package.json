@@ -1,6 +1,6 @@
 {
   "name": "@pons-network/pons.js",
-  "version": "0.10.0",
+  "version": "0.2.0",
   "description": "Pons Network SDK - Decentralized cross-chain execution layer",
   "keywords": [
     "pons",
